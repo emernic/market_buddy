@@ -2,20 +2,14 @@ print('Initializing...')
 
 try:
 	import json
-	from pprint import pprint
 	import time
 	import random
-	import numpy as np
-	from operator import itemgetter
 	import requests
 	from lxml import html
 	from fuzzywuzzy import fuzz
 	import matplotlib as mpl
 	import matplotlib.pyplot as plt
 	import pyperclip
-	import atexit
-	import asyncio
-	import websockets
 
 	from prettytable import PrettyTable
 
@@ -26,20 +20,14 @@ except:
 	stdout, stderr = p.communicate()
 
 	import json
-	from pprint import pprint
 	import time
 	import random
-	import numpy as np
-	from operator import itemgetter
 	import requests
 	from lxml import html
 	from fuzzywuzzy import fuzz
 	import matplotlib as mpl
 	import matplotlib.pyplot as plt
 	import pyperclip
-	import atexit
-	import asyncio
-	import websockets
 
 	from prettytable import PrettyTable
 
@@ -149,7 +137,7 @@ Examples...
 
 			stats = json.loads(client.get("https://api.warframe.market/v1/items/{0}/statistics".format(best_match_item['url_name'])).text)['payload']['statistics']['90days']
 			time.sleep(0.1)
-			median_price = np.median([x['median'] for x in stats[-5:]])
+			median_price = median([x['median'] for x in stats[-5:]])
 
 			orders = json.loads(client.get("https://api.warframe.market/v1/items/{0}/orders".format(best_match_item['url_name'])).text)['payload']['orders']
 			time.sleep(0.1)
@@ -200,7 +188,7 @@ Examples...
 
 			stats = json.loads(client.get("https://api.warframe.market/v1/items/{0}/statistics".format(best_match_item['url_name'])).text)['payload']['statistics']['90days']
 			time.sleep(0.1)
-			median_price = np.median([x['median'] for x in stats[-5:]])
+			median_price = median([x['median'] for x in stats[-5:]])
 
 			orders = json.loads(client.get("https://api.warframe.market/v1/items/{0}/orders".format(best_match_item['url_name'])).text)['payload']['orders']
 			time.sleep(0.1)
@@ -448,4 +436,13 @@ Examples...
 	
 	else:
 		print("Couldn't recognize the command, if you need help, you can type \"Help\" to get a list of commands.")
-	
+
+
+def median(lst):
+    n = len(lst)
+    if n < 1:
+            return None
+    if n % 2 == 1:
+            return sorted(lst)[n//2]
+    else:
+            return sum(sorted(lst)[n//2-1:n//2+1])/2.0
