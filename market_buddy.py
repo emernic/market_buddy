@@ -1,3 +1,5 @@
+print('Initializing...')
+
 import json
 import urllib.request
 from pprint import pprint
@@ -15,31 +17,38 @@ import atexit
 import asyncio
 import websockets
 
+from prettytable import PrettyTable
+
 # Cookie string (taken from a request in browser)
-COOKIE = ''
+with open('data/secret.txt') as secret_file:
+	cookie = secret_file.read()
 
 # def exit_handler():
 #     print('Logging out of wf.market')
-
 
 # atexit.register(exit_handler)
 
 CHAT_LIMIT = 180
 
-print('Initializing...')
-
-with open('data/wf_item_list_high_vol.json') as item_list_file:
-	item_list = json.loads(item_list_file.read())
+if not cookie:
+	print('WARNING: YOU HAVE NOT SET YOUR COOKIE AND THEREFORE CANNOT PLACE ORDERS ON YOUR ACCOUNT!')
+	print('See this video for instructions on finding your cookie (~2 minutes to do).')
+	print('https://www.youtube.com/watch?v=OwxMjCmbx_g')
+	cookie = input('Enter cookie: ')
+	with open('data/secret.txt', 'w+') as secret_file:
+		secret_file.write(cookie)
 
 
 client = requests.session()
-client.headers.update({'cookie': COOKIE})
+client.headers.update({'cookie': cookie})
 
 HOME = 'https://warframe.market/'
 r = client.get(HOME)
 tree = html.fromstring(r.text)
 csrf = tree.xpath('//meta[@name="csrf-token"]/attribute::content')[0]
 client.headers.update({'x-csrftoken': csrf})
+
+item_list = json.loads(requests.get('https://api.warframe.market/v1/items').text)['payload']['items']['en']
 
 user_name = json.loads(client.get('https://api.warframe.market/v1/profile').text)['profile']['ingame_name']
 
@@ -55,12 +64,15 @@ user_name = json.loads(client.get('https://api.warframe.market/v1/profile').text
 print('Welcome to Market Buddy! Your friendly companion for Warframe trading!')
 print('Market Buddy is mostly a super speedy way of interacting with wf.market.')
 print('Type "help" to see a list of possible commands :)')
-if not COOKIE:
-	print('YOU HAVE NOT SET YOUR COOKIE! you must login to warframe.market, find your cookie that contains your JWT authentication token, and paste it as the "COOKIE" constant in this script!')
 
 while True:
-	commands = input("Enter commands: ")
 
+	print("")
+
+	commands = input("Enter commands: ")
+	
+	commands = commands.replace(" bp", "blueprint") #So if you search "nekros prime bp" it understands blueprint instead of set, needs testing with more item names and commands, but should be ok.
+	
 	if commands.upper() == 'EXIT':
 		exit()
 
@@ -85,7 +97,8 @@ Examples...
 -Type "chat WTS" to only list items you want to sell.
 -Type "chat WTB" to only list items you want to buy.
 
--Type "nekros prime, tigris prime, galatine prime handle" to plot a graph of the median wf.market prices for these items over the last 90 days.
+-Type "GR nekros prime, tigris prime, galatine prime handle" to plot a graph of the median wf.market prices for these items over the last 90 days.
+-Type "PC nekros prime, tigris prime, galatine prime handle" to get the minimun selling and maximum buying prices for these items at this moment.
 """
 			)
 
@@ -345,7 +358,7 @@ Examples...
 		for order in buy_orders_sorted:
 			print("BUY ORDER FOR {0} \"{1}\" AT {2}p EACH".format(order['quantity'], order['item']['en']['item_name'], order['platinum']))
 
-	else:
+	elif commands[:3].upper() == 'GR ':
 		print("GRAPHING PRICES OVER TIME, PRESS CTRL+W TO CLOSE FIGURE.")
 		for name in commands.split(','):
 			best_match_item = None
@@ -369,3 +382,44 @@ Examples...
 		plt.xlabel('Day (relative to today)')
 		plt.ylabel('Median trade price (plat)')
 		plt.show()
+		
+	elif commands [:3].upper() == 'PC ':
+	
+		table = PrettyTable(['ITEM NAME', 'SELLING', 'BUYING'])
+	
+		#table.border = False
+	
+		for name in commands.split(','):
+			best_match_item = None
+			best_match = 0
+			for item in item_list:
+				match = fuzz.ratio(item['item_name'], name)
+				if match > best_match:
+					best_match = match
+					best_match_item = item
+					
+			orders = json.loads(urllib.request.urlopen("https://api.warframe.market/v1/items/{0}/orders".format(best_match_item['url_name'])).read())['payload']['orders']
+			
+			time.sleep(0.1) #Not sure why because I dont know much about python, but you had it above and I trust you.
+
+			item_orders = [x for x in orders if x['user']['status'] == 'ingame']
+			buy_plat = 0
+			sell_plat = 99999
+			
+			for order in item_orders:
+				if order['order_type'] == 'buy':
+					if order['user']['status'] == 'ingame' and order['platinum'] > buy_plat:
+						buy_plat = order['platinum']
+
+				elif order['order_type'] == 'sell':
+					if order['user']['status'] == 'ingame' and order['platinum'] < sell_plat:
+						sell_plat = order['platinum']
+			#print("\n\t{0} SELLING PRICE: {1}p - BUYING PRICE: {2}p.".format(best_match_item['item_name'], sell_plat, buy_plat))
+			table.add_row([best_match_item['item_name'], sell_plat, buy_plat])
+		
+		
+		print(table)
+	
+	else:
+		print("Couldn't recognize the command, if you need help, you can type \"Help\" to get a list of commands.")
+	
