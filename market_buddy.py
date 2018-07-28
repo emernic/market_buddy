@@ -52,7 +52,7 @@ CHAT_LIMIT = 180
 
 try:
 	# Cookie string (taken from a request in browser)
-	with open('data/secret.txt') as secret_file:
+	with open('secret.txt') as secret_file:
 		cookie = secret_file.read()
 
 except:
@@ -60,7 +60,7 @@ except:
 	print('See this video for instructions on finding your cookie (~2 minutes to do).')
 	print('https://www.youtube.com/watch?v=OwxMjCmbx_g')
 	cookie = input('Enter cookie: ')
-	with open('data/secret.txt', 'w+') as secret_file:
+	with open('secret.txt', 'w+') as secret_file:
 		secret_file.write(cookie)
 	print('Initializing...')
 
