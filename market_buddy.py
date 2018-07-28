@@ -43,10 +43,6 @@ except:
 
 	from prettytable import PrettyTable
 
-# Cookie string (taken from a request in browser)
-with open('data/secret.txt') as secret_file:
-	cookie = secret_file.read()
-
 # def exit_handler():
 #     print('Logging out of wf.market')
 
@@ -54,7 +50,12 @@ with open('data/secret.txt') as secret_file:
 
 CHAT_LIMIT = 180
 
-if not cookie:
+try:
+	# Cookie string (taken from a request in browser)
+	with open('data/secret.txt') as secret_file:
+		cookie = secret_file.read()
+
+except:
 	print('WARNING: YOU HAVE NOT SET YOUR COOKIE AND THEREFORE CANNOT PLACE ORDERS ON YOUR ACCOUNT!')
 	print('See this video for instructions on finding your cookie (~2 minutes to do).')
 	print('https://www.youtube.com/watch?v=OwxMjCmbx_g')
