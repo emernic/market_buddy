@@ -1,23 +1,47 @@
 print('Initializing...')
 
-import json
-import urllib.request
-from pprint import pprint
-import time
-import random
-import numpy as np
-from operator import itemgetter
-import requests
-from lxml import html
-from fuzzywuzzy import fuzz
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-import pyperclip
-import atexit
-import asyncio
-import websockets
+try:
+	import json
+	from pprint import pprint
+	import time
+	import random
+	import numpy as np
+	from operator import itemgetter
+	import requests
+	from lxml import html
+	from fuzzywuzzy import fuzz
+	import matplotlib as mpl
+	import matplotlib.pyplot as plt
+	import pyperclip
+	import atexit
+	import asyncio
+	import websockets
 
-from prettytable import PrettyTable
+	from prettytable import PrettyTable
+
+except:
+	print("Installing dependencies...")
+	from subprocess import Popen
+	p = Popen("requirements.bat")
+	stdout, stderr = p.communicate()
+
+	import json
+	from pprint import pprint
+	import time
+	import random
+	import numpy as np
+	from operator import itemgetter
+	import requests
+	from lxml import html
+	from fuzzywuzzy import fuzz
+	import matplotlib as mpl
+	import matplotlib.pyplot as plt
+	import pyperclip
+	import atexit
+	import asyncio
+	import websockets
+
+	from prettytable import PrettyTable
 
 # Cookie string (taken from a request in browser)
 with open('data/secret.txt') as secret_file:
@@ -37,6 +61,7 @@ if not cookie:
 	cookie = input('Enter cookie: ')
 	with open('data/secret.txt', 'w+') as secret_file:
 		secret_file.write(cookie)
+	print('Initializing...')
 
 
 client = requests.session()
@@ -48,7 +73,7 @@ tree = html.fromstring(r.text)
 csrf = tree.xpath('//meta[@name="csrf-token"]/attribute::content')[0]
 client.headers.update({'x-csrftoken': csrf})
 
-item_list = json.loads(requests.get('https://api.warframe.market/v1/items').text)['payload']['items']['en']
+item_list = json.loads(client.get('https://api.warframe.market/v1/items').text)['payload']['items']['en']
 
 user_name = json.loads(client.get('https://api.warframe.market/v1/profile').text)['profile']['ingame_name']
 
@@ -121,11 +146,11 @@ Examples...
 					best_match_item = item
 
 
-			stats = json.loads(urllib.request.urlopen("https://api.warframe.market/v1/items/{0}/statistics".format(best_match_item['url_name'])).read())['payload']['statistics']['90days']
+			stats = json.loads(client.get("https://api.warframe.market/v1/items/{0}/statistics".format(best_match_item['url_name'])).text)['payload']['statistics']['90days']
 			time.sleep(0.1)
 			median_price = np.median([x['median'] for x in stats[-5:]])
 
-			orders = json.loads(urllib.request.urlopen("https://api.warframe.market/v1/items/{0}/orders".format(best_match_item['url_name'])).read())['payload']['orders']
+			orders = json.loads(client.get("https://api.warframe.market/v1/items/{0}/orders".format(best_match_item['url_name'])).text)['payload']['orders']
 			time.sleep(0.1)
 
 			buy_orders = [x for x in orders if x['order_type'] == 'buy' and x['user']['status'] == 'ingame']
@@ -172,11 +197,11 @@ Examples...
 					best_match = match
 					best_match_item = item
 
-			stats = json.loads(urllib.request.urlopen("https://api.warframe.market/v1/items/{0}/statistics".format(best_match_item['url_name'])).read())['payload']['statistics']['90days']
+			stats = json.loads(client.get("https://api.warframe.market/v1/items/{0}/statistics".format(best_match_item['url_name'])).text)['payload']['statistics']['90days']
 			time.sleep(0.1)
 			median_price = np.median([x['median'] for x in stats[-5:]])
 
-			orders = json.loads(urllib.request.urlopen("https://api.warframe.market/v1/items/{0}/orders".format(best_match_item['url_name'])).read())['payload']['orders']
+			orders = json.loads(client.get("https://api.warframe.market/v1/items/{0}/orders".format(best_match_item['url_name'])).text)['payload']['orders']
 			time.sleep(0.1)
 
 			buy_orders = [x for x in orders if x['order_type'] == 'sell' and x['user']['status'] == 'ingame']
@@ -369,7 +394,7 @@ Examples...
 					best_match = match
 					best_match_item = item
 
-			stats = json.loads(urllib.request.urlopen("https://api.warframe.market/v1/items/{0}/statistics".format(best_match_item['url_name'])).read())['payload']['statistics']['90days']
+			stats = json.loads(client.get("https://api.warframe.market/v1/items/{0}/statistics".format(best_match_item['url_name'])).text)['payload']['statistics']['90days']
 
 			median_prices = [x['median'] for x in stats]
 			relative_dates = range(-len(median_prices), 0)
@@ -398,7 +423,7 @@ Examples...
 					best_match = match
 					best_match_item = item
 					
-			orders = json.loads(urllib.request.urlopen("https://api.warframe.market/v1/items/{0}/orders".format(best_match_item['url_name'])).read())['payload']['orders']
+			orders = json.loads(client.get("https://api.warframe.market/v1/items/{0}/orders".format(best_match_item['url_name'])).text)['payload']['orders']
 			
 			time.sleep(0.1) #Not sure why because I dont know much about python, but you had it above and I trust you.
 
