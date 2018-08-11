@@ -31,6 +31,17 @@ except:
 
 	from prettytable import PrettyTable
 
+
+def median(lst):
+    n = len(lst)
+    if n < 1:
+            return None
+    if n % 2 == 1:
+            return sorted(lst)[n//2]
+    else:
+            return sum(sorted(lst)[n//2-1:n//2+1])/2.0
+
+
 # def exit_handler():
 #     print('Logging out of wf.market')
 
@@ -136,11 +147,9 @@ Examples...
 
 
 			stats = json.loads(client.get("https://api.warframe.market/v1/items/{0}/statistics".format(best_match_item['url_name'])).text)['payload']['statistics']['90days']
-			time.sleep(0.1)
 			median_price = median([x['median'] for x in stats[-5:]])
 
 			orders = json.loads(client.get("https://api.warframe.market/v1/items/{0}/orders".format(best_match_item['url_name'])).text)['payload']['orders']
-			time.sleep(0.1)
 
 			buy_orders = [x for x in orders if x['order_type'] == 'buy' and x['user']['status'] == 'ingame']
 			max_plat = 0
@@ -165,7 +174,9 @@ Examples...
 			payload = {'order_type': 'buy', 'item_id': best_match_item['id'], 'platinum': plat, 'quantity': quantity}
 			additional_headers = {"language": "en", "accept-language": "en-US,en;q=0.9", "platform": "pc", "origin": "https://warframe.market", "referer": "https://warframe.market/", "accept": "application/json", "accept-encoding": "gzip, deflate, br"}
 			r = client.post('https://api.warframe.market/v1/profile/orders', headers=additional_headers, json=payload)
-			time.sleep(0.1)
+			if not (r.status_code == 200):
+				payload = {'order_type': 'buy', 'item_id': best_match_item['id'], 'platinum': plat, 'quantity': quantity, 'mod_rank': 0}
+				r = client.post('https://api.warframe.market/v1/profile/orders', headers=additional_headers, json=payload)
 			print("PLACED BUY ORDER FOR {0} \"{1}\" AT {2}p EACH".format(quantity, best_match_item['item_name'], plat))
 
 	elif commands[:5].upper() == 'SELL ':
@@ -187,11 +198,9 @@ Examples...
 					best_match_item = item
 
 			stats = json.loads(client.get("https://api.warframe.market/v1/items/{0}/statistics".format(best_match_item['url_name'])).text)['payload']['statistics']['90days']
-			time.sleep(0.1)
 			median_price = median([x['median'] for x in stats[-5:]])
 
 			orders = json.loads(client.get("https://api.warframe.market/v1/items/{0}/orders".format(best_match_item['url_name'])).text)['payload']['orders']
-			time.sleep(0.1)
 
 			buy_orders = [x for x in orders if x['order_type'] == 'sell' and x['user']['status'] == 'ingame']
 			min_plat = 999999999
@@ -218,7 +227,6 @@ Examples...
 			if not (r.status_code == 200):
 				payload = {'order_type': 'sell', 'item_id': best_match_item['id'], 'platinum': plat, 'quantity': quantity, 'mod_rank': 0}
 				r = client.post('https://api.warframe.market/v1/profile/orders', headers=additional_headers, json=payload)
-			time.sleep(0.1)
 			print("PLACED SELL ORDER FOR {0} \"{1}\" AT {2}p EACH".format(quantity, best_match_item['item_name'], plat))
 
 	elif commands[:5].upper() == 'SOLD ':
@@ -242,7 +250,6 @@ Examples...
 
 
 			orders = json.loads(client.get('https://api.warframe.market/v1/profile/{0}/orders'.format(user_name)).text)['payload']['sell_orders']
-			time.sleep(0.1)
 
 			selected_orders = []
 			for order in orders:
@@ -282,7 +289,6 @@ Examples...
 
 
 			orders = json.loads(client.get('https://api.warframe.market/v1/profile/{0}/orders'.format(user_name)).text)['payload']['buy_orders']
-			time.sleep(0.1)
 
 			selected_orders = []
 			for order in orders:
@@ -414,8 +420,6 @@ Examples...
 					
 			orders = json.loads(client.get("https://api.warframe.market/v1/items/{0}/orders".format(best_match_item['url_name'])).text)['payload']['orders']
 			
-			time.sleep(0.1) #Not sure why because I dont know much about python, but you had it above and I trust you.
-
 			item_orders = [x for x in orders if x['user']['status'] == 'ingame']
 			buy_plat = 0
 			sell_plat = 99999
@@ -436,13 +440,3 @@ Examples...
 	
 	else:
 		print("Couldn't recognize the command, if you need help, you can type \"Help\" to get a list of commands.")
-
-
-def median(lst):
-    n = len(lst)
-    if n < 1:
-            return None
-    if n % 2 == 1:
-            return sorted(lst)[n//2]
-    else:
-            return sum(sorted(lst)[n//2-1:n//2+1])/2.0
