@@ -1,36 +1,22 @@
 print('Initializing...')
 
+import json
+import time
+import random
+import requests
+from lxml import html
+from fuzzywuzzy import fuzz
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import pyperclip
+
+from prettytable import PrettyTable
+
+# Hack to make it python 2 compatible
 try:
-	import json
-	import time
-	import random
-	import requests
-	from lxml import html
-	from fuzzywuzzy import fuzz
-	import matplotlib as mpl
-	import matplotlib.pyplot as plt
-	import pyperclip
-
-	from prettytable import PrettyTable
-
-except:
-	print("Installing dependencies...")
-	from subprocess import Popen
-	p = Popen("requirements.bat")
-	stdout, stderr = p.communicate()
-
-	import json
-	import time
-	import random
-	import requests
-	from lxml import html
-	from fuzzywuzzy import fuzz
-	import matplotlib as mpl
-	import matplotlib.pyplot as plt
-	import pyperclip
-
-	from prettytable import PrettyTable
-
+   input = raw_input
+except NameError:
+   pass
 
 def median(lst):
     n = len(lst)
