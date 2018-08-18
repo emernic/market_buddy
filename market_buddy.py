@@ -119,8 +119,11 @@ Examples...
 -Type "orders" to see a list of your current wf.market orders.
 
 -Type "chat" to generate a trade chat message of your most expensive WTB and WTS orders and automatically copy it to clipboard.
--Type "chat WTS" to only list items you want to sell.
--Type "chat WTB" to only list items you want to buy.
+-Type "chat wts" to only list items you want to sell.
+-Type "chat wtb" to only list items you want to buy.
+
+-Type "msg buy lex prime set" to generate and copy a whisper message saying you would like to buy this item.
+-Type "msg sell lex prime set" to generate and copy a whisper message saying you would like to sell this item.
 
 -Type "GR nekros prime, tigris prime, galatine prime handle" to plot a graph of the median wf.market prices for these items over the last 90 days.
 -Type "PC nekros prime, tigris prime, galatine prime handle" to get the minimun selling and maximum buying prices for these items at this moment.
@@ -460,5 +463,63 @@ Examples...
 
 	        print(table2)
 
+	elif commands [:7].upper() == 'MSG BUY':
+	
+		terms = commands[7:].strip()
+		
+		best_match_item = None
+		best_match = 0
+		for item in item_list:
+			match = fuzz.ratio(item['item_name'], terms)
+			if match > best_match:
+				best_match = match
+				best_match_item = item
+				
+		orders = json.loads(requests.get("https://api.warframe.market/v1/items/{0}/orders".format(best_match_item['url_name'])).text)['payload']['orders']
+		
+		time.sleep(0.1) #Not sure why because I dont know much about python, but you had it above and I trust you.
+		item_orders = [x for x in orders if x['user']['status'] == 'ingame' and x['order_type'] == 'sell' and x['visible'] == True]
+		
+		sell_plat = 99999
+		
+		for order in item_orders:
+			if order['user']['status'] == 'ingame' and order['platinum'] < sell_plat:
+				sell_plat = order['platinum']
+				username = order['user']['ingame_name']
+		
+		chat_message = '/w '+ username + 'Hi! I want to buy: ' + best_match_item['item_name'] + ' for ' + str(sell_plat) + ' platinum. (warframe.market)'
+					   #/w Jefferson231 Hi! I want to buy: Vauban Prime Systems for 45 platinum. (warframe.market)
+		pyperclip.copy(chat_message)
+		print("Copied to clipboard: \"{0}\"".format(chat_message))
+		
+	elif commands [:8].upper() == 'MSG SELL':	
+	
+		terms = commands[7:].strip()
+		
+		best_match_item = None
+		best_match = 0
+		for item in item_list:
+			match = fuzz.ratio(item['item_name'], terms)
+			if match > best_match:
+				best_match = match
+				best_match_item = item
+				
+		orders = json.loads(requests.get("https://api.warframe.market/v1/items/{0}/orders".format(best_match_item['url_name'])).text)['payload']['orders']
+		
+		time.sleep(0.1) #Not sure why because I dont know much about python, but you had it above and I trust you.
+		item_orders = [x for x in orders if x['user']['status'] == 'ingame' and x['order_type'] == 'buy' and x['visible'] == True]
+		
+		buy_plat = 0
+		
+		for order in item_orders:
+			if order['user']['status'] == 'ingame' and order['platinum'] > buy_plat:
+				buy_plat = order['platinum']
+				username = order['user']['ingame_name']
+		
+		chat_message = '/w '+ username + 'Hi! I want to sell: ' + best_match_item['item_name'] + ' for ' + str(buy_plat) + ' platinum. (warframe.market)'
+
+		pyperclip.copy(chat_message)
+		print("Copied to clipboard: \"{0}\"".format(chat_message))
+	
 	else:
 		print("Couldn't recognize the command, if you need help, you can type \"Help\" to get a list of commands.")
