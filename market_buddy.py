@@ -124,6 +124,8 @@ Examples...
 
 -Type "GR nekros prime, tigris prime, galatine prime handle" to plot a graph of the median wf.market prices for these items over the last 90 days.
 -Type "PC nekros prime, tigris prime, galatine prime handle" to get the minimun selling and maximum buying prices for these items at this moment.
+
+-Type "RH axi a1 a2 v5" to do a price check of all items that can drop from these relics.
 """
 			)
 
@@ -437,6 +439,26 @@ Examples...
 		
 		
 		print(table)
-	
+
+	elif commands [:3].upper() == 'RH ':
+
+	        commands = commands [3:]
+
+	        table2 = PrettyTable(['ITEM NAME', 'PRICE'])
+
+	        url = 'http://cristobal2dam.esy.es/WDIP/query.php?tier=';
+
+	        for term in commands.split(' '):
+	            url = url + term.strip() +  '&name[]='
+
+	        orders = json.loads(requests.get(url).text)
+
+	        for item in orders:
+	            name = orders[item]['NAME']
+	            pl = orders[item]['PLATINUM']
+	            table2.add_row([name, pl])
+
+	        print(table2)
+
 	else:
 		print("Couldn't recognize the command, if you need help, you can type \"Help\" to get a list of commands.")
