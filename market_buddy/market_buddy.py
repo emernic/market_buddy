@@ -59,7 +59,7 @@ tree = html.fromstring(r.text)
 csrf = tree.xpath('//meta[@name="csrf-token"]/attribute::content')[0]
 client.headers.update({'x-csrftoken': csrf})
 
-item_list = json.loads(client.get('https://api.warframe.market/v1/items').text)['payload']['items']['en']
+item_list = json.loads(client.get('https://api.warframe.market/v1/items').text)['payload']['items']
 
 user_name = json.loads(client.get('https://api.warframe.market/v1/profile').text)['profile']['ingame_name']
 
@@ -365,7 +365,7 @@ Examples...
                 print("Automatic copy to clipboard not supported on your OS")
 
     elif commands[:6].upper() == 'ORDERS':
-        sell_orders = json.loads(client.get('https://api.warframe.market/v1/profile/{0}/orders'.format(user_name)).text)['payload']['sell_orders']
+        sell_orders = client.get('https://api.warframe.market/v1/profile/{0}/orders'.format(user_name)).json()['payload']['sell_orders']
         sell_orders_sorted = sorted(sell_orders, key=lambda x: x['platinum'], reverse=True)
 
         for order in sell_orders_sorted:

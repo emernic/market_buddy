@@ -6,7 +6,7 @@ def read(fname):
 
 setup(
     name = "market_buddy",
-    version = "0.1.0",
+    version = "0.1.2",
     author = "Nick Emery",
     author_email = "nickemery23@gmail.com",
     description = ("A command line program allowing fast interaction with warframe.market."),
