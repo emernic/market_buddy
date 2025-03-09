@@ -519,6 +519,38 @@ Examples...
             pyperclip.copy(chat_message)
         except:
             print("Automatic copy to clipboard not supported on your OS")
-    
+    elif commands.upper() == 'REPRICE':
+        orders_url = f'https://api.warframe.market/v1/profile/{user_name}/orders'
+        orders_response = client.get(orders_url).json()['payload']
+        all_orders = orders_response['sell_orders'] + orders_response['buy_orders']
+
+        additional_headers = {"language": "en", "accept-language": "en-US,en;q=0.9", "platform": "pc", "origin": "https://warframe.market", "referer": "https://warframe.market/", "accept": "application/json"}
+
+        for order in all_orders:
+            item_url_name = order['item']['url_name']
+            order_type = order['order_type']
+            quantity = order['quantity']
+
+            # Fetch current market orders
+            market_orders = client.get(f"https://api.warframe.market/v1/items/{item_url_name}/orders").json()['payload']['orders']
+
+            relevant_orders = [o for o in market_orders if o['order_type'] == order_type and o['user']['status'] == 'ingame']
+
+            if order_type == 'sell':
+                new_price = min([o['platinum'] for o in relevant_orders], default=order['platinum'])
+            else:
+                new_price = max([o['platinum'] for o in relevant_orders], default=order['platinum'])
+
+            # Close existing order
+            client.put(f'https://api.warframe.market/v1/profile/orders/close/{order["id"]}')
+
+            # Recreate order with updated price
+            new_payload = {'order_type': order_type, 'item_id': order['item']['id'], 'platinum': new_price, 'quantity': quantity}
+            response = client.post('https://api.warframe.market/v1/profile/orders', headers=additional_headers, json=new_payload)
+
+            if response.status_code == 200:
+                print(f"Repriced {order_type.upper()} ORDER for {quantity} '{order['item']['en']['item_name']}' at {new_price}p EACH")
+            else:
+                print(f"FAILED TO REPRICE ORDER for '{order['item']['en']['item_name']}'")
     else:
         print("Couldn't recognize the command, if you need help, you can type \"Help\" to get a list of commands.")
