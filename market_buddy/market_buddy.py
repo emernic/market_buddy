@@ -522,86 +522,86 @@ Examples...
             pyperclip.copy(chat_message)
         except:
             print("Automatic copy to clipboard not supported on your OS")
-elif commands[:7].upper() == 'REPRICE':
-    orders = json.loads(client.get(f'https://api.warframe.market/v1/profile/{user_name}/orders').text)['payload']
-    all_orders = orders['buy_orders'] + orders['sell_orders']
-
-    item_names = commands[7:].strip()
-    items_to_reprice = []
-
-    if item_names:
-        # Fuzzy-match specified items
-        for name in item_names.split(','):
-            name = name.strip()
-            best_match_item = None
-            best_match = 0
-            for item in item_list:
-                match = fuzz.ratio(item['item_name'].lower(), name.lower())
-                if match > best_match:
-                    best_match = match
-                    best_match_item = item
-            if best_match_item:
-                items_to_reprice.append(best_match_item['id'])
-    else:
-        # Reprice all if no specific items given
-        items_to_reprice = [order['item']['id'] for order in all_orders]
-
-    # Filter orders by matched item IDs
-    selected_orders = [order for order in all_orders if order['item']['id'] in items_to_reprice]
-
-    for order in selected_orders:
-        order_type = order['order_type']
-        item_url_name = order['item']['url_name']
-        item_id = order['item']['id']
-        quantity = order['quantity']
-
-        # Get median price
-        stats = json.loads(client.get(f"https://api.warframe.market/v1/items/{item_url_name}/statistics").text)['payload']['statistics_closed']['90days']
-        median_price = median([x['median'] for x in stats[-5:]])
-
-        market_orders = json.loads(client.get(f"https://api.warframe.market/v1/items/{item_url_name}/orders").text)['payload']['orders']
-
-        if order_type == 'buy':
-            plat = max(
-                (o['platinum'] for o in market_orders if o['order_type'] == 'buy' and o['user']['status'] == 'ingame'),
-                default=round(median_price * 1.1)
-            )
-            if plat > 1.5 * median_price or plat < 0.5 * median_price:
-                plat = round(1.1 * median_price)
-        else:  # sell order
-            plat = min(
-                (o['platinum'] for o in market_orders if o['order_type'] == 'sell' and o['user']['status'] == 'ingame'),
-                default=round(median_price * 0.9)
-            )
-            if plat > 1.5 * median_price or plat < 0.5 * median_price:
-                plat = round(0.9 * median_price)
-
-        # Close existing order
-        client.put(f'https://api.warframe.market/v1/profile/orders/close/{order["id"]}')
-
-        payload = {
-            'order_type': order_type,
-            'item_id': item_id,
-            'platinum': plat,
-            'quantity': quantity
-        }
-
-        additional_headers = {
-            "language": "en",
-            "accept-language": "en-US,en;q=0.9",
-            "platform": "pc",
-            "origin": "https://warframe.market",
-            "referer": "https://warframe.market/",
-            "accept": "application/json",
-            "accept-encoding": "gzip, deflate, br"
-        }
-
-        r = client.post('https://api.warframe.market/v1/profile/orders', headers=additional_headers, json=payload)
-        if r.status_code != 200:
-            payload['mod_rank'] = 0
-            client.post('https://api.warframe.market/v1/profile/orders', headers=additional_headers, json=payload)
-
-        print(f'REPRICED {order_type.upper()} ORDER FOR "{order["item"]["en"]["item_name"]}" TO {plat}p')
+    elif commands[:7].upper() == 'REPRICE':
+       orders = json.loads(client.get(f'https://api.warframe.market/v1/profile/{user_name}/orders').text)['payload']
+       all_orders = orders['buy_orders'] + orders['sell_orders']
+   
+       item_names = commands[7:].strip()
+       items_to_reprice = []
+   
+       if item_names:
+           # Fuzzy-match specified items
+           for name in item_names.split(','):
+               name = name.strip()
+               best_match_item = None
+               best_match = 0
+               for item in item_list:
+                   match = fuzz.ratio(item['item_name'].lower(), name.lower())
+                   if match > best_match:
+                       best_match = match
+                       best_match_item = item
+               if best_match_item:
+                   items_to_reprice.append(best_match_item['id'])
+       else:
+           # Reprice all if no specific items given
+           items_to_reprice = [order['item']['id'] for order in all_orders]
+   
+       # Filter orders by matched item IDs
+       selected_orders = [order for order in all_orders if order['item']['id'] in items_to_reprice]
+   
+       for order in selected_orders:
+           order_type = order['order_type']
+           item_url_name = order['item']['url_name']
+           item_id = order['item']['id']
+           quantity = order['quantity']
+   
+           # Get median price
+           stats = json.loads(client.get(f"https://api.warframe.market/v1/items/{item_url_name}/statistics").text)['payload']['statistics_closed']['90days']
+           median_price = median([x['median'] for x in stats[-5:]])
+   
+           market_orders = json.loads(client.get(f"https://api.warframe.market/v1/items/{item_url_name}/orders").text)['payload']['orders']
+   
+           if order_type == 'buy':
+               plat = max(
+                   (o['platinum'] for o in market_orders if o['order_type'] == 'buy' and o['user']['status'] == 'ingame'),
+                   default=round(median_price * 1.1)
+               )
+               if plat > 1.5 * median_price or plat < 0.5 * median_price:
+                   plat = round(1.1 * median_price)
+           else:  # sell order
+               plat = min(
+                   (o['platinum'] for o in market_orders if o['order_type'] == 'sell' and o['user']['status'] == 'ingame'),
+                   default=round(median_price * 0.9)
+               )
+               if plat > 1.5 * median_price or plat < 0.5 * median_price:
+                   plat = round(0.9 * median_price)
+   
+           # Close existing order
+           client.put(f'https://api.warframe.market/v1/profile/orders/close/{order["id"]}')
+   
+           payload = {
+               'order_type': order_type,
+               'item_id': item_id,
+               'platinum': plat,
+               'quantity': quantity
+           }
+   
+           additional_headers = {
+               "language": "en",
+               "accept-language": "en-US,en;q=0.9",
+               "platform": "pc",
+               "origin": "https://warframe.market",
+               "referer": "https://warframe.market/",
+               "accept": "application/json",
+               "accept-encoding": "gzip, deflate, br"
+           }
+   
+           r = client.post('https://api.warframe.market/v1/profile/orders', headers=additional_headers, json=payload)
+           if r.status_code != 200:
+               payload['mod_rank'] = 0
+               client.post('https://api.warframe.market/v1/profile/orders', headers=additional_headers, json=payload)
+   
+           print(f'REPRICED {order_type.upper()} ORDER FOR "{order["item"]["en"]["item_name"]}" TO {plat}p')
 
     else:
         print("Couldn't recognize the command, if you need help, you can type \"Help\" to get a list of commands.")
