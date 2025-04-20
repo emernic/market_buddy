@@ -541,6 +541,7 @@ Examples...
     elif commands[:7].upper() == 'REPRICE':
        orders = json.loads(client.get(f'https://api.warframe.market/v1/profile/{user_name}/orders').text)['payload']
        all_orders = orders['buy_orders'] + orders['sell_orders']
+       time.sleep(0.1) # Added sleep
    
        item_names = commands[7:].strip()
        items_to_reprice = []
@@ -573,9 +574,11 @@ Examples...
    
            # Get median price
            stats = json.loads(client.get(f"https://api.warframe.market/v1/items/{item_url_name}/statistics").text)['payload']['statistics_closed']['90days']
+           time.sleep(0.1) # Added sleep
            median_price = median([x['median'] for x in stats[-5:]])
    
            market_orders = json.loads(client.get(f"https://api.warframe.market/v1/items/{item_url_name}/orders").text)['payload']['orders']
+           time.sleep(0.1) # Added sleep
    
            if order_type == 'buy':
                plat = max(
@@ -594,6 +597,7 @@ Examples...
    
            # Close existing order
            client.put(f'https://api.warframe.market/v1/profile/orders/close/{order["id"]}')
+           time.sleep(0.1) # Added sleep
    
            payload = {
                'order_type': order_type,
@@ -613,9 +617,11 @@ Examples...
            }
    
            r = client.post('https://api.warframe.market/v1/profile/orders', headers=additional_headers, json=payload)
+           time.sleep(0.1) # Added sleep
            if r.status_code != 200:
                payload['mod_rank'] = 0
                client.post('https://api.warframe.market/v1/profile/orders', headers=additional_headers, json=payload)
+               time.sleep(0.1) # Added sleep
    
            print(f'REPRICED {order_type.upper()} ORDER FOR "{order["item"]["en"]["item_name"]}" TO {plat}p')
 
