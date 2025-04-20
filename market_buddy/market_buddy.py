@@ -422,17 +422,20 @@ Examples...
                     
             orders = json.loads(client.get("https://api.warframe.market/v1/items/{0}/orders".format(best_match_item['url_name'])).text)['payload']['orders']
             
-            item_orders = [x for x in orders if x['user']['status'] == 'ingame']
+            # Filter out own orders before processing
+            item_orders = [x for x in orders if x['user']['status'] == 'ingame' and x['user']['ingame_name'] != user_name] 
             buy_plat = 0
             sell_plat = 99999
             
             for order in item_orders:
                 if order['order_type'] == 'buy':
-                    if order['user']['status'] == 'ingame' and order['platinum'] > buy_plat:
+                    # Check only platinum, user already filtered
+                    if order['platinum'] > buy_plat: 
                         buy_plat = order['platinum']
 
                 elif order['order_type'] == 'sell':
-                    if order['user']['status'] == 'ingame' and order['platinum'] < sell_plat:
+                    # Check only platinum, user already filtered
+                    if order['platinum'] < sell_plat: 
                         sell_plat = order['platinum']
             #print("\n\t{0} SELLING PRICE: {1}p - BUYING PRICE: {2}p.".format(best_match_item['item_name'], sell_plat, buy_plat))
             table.add_row([best_match_item['item_name'], sell_plat, buy_plat])
@@ -475,22 +478,28 @@ Examples...
         orders = json.loads(requests.get("https://api.warframe.market/v1/items/{0}/orders".format(best_match_item['url_name'])).text)['payload']['orders']
         
         time.sleep(0.1) #Not sure why because I dont know much about python, but you had it above and I trust you.
-        item_orders = [x for x in orders if x['user']['status'] == 'ingame' and x['order_type'] == 'sell' and x['visible'] == True]
+        # Filter out own orders before processing
+        item_orders = [x for x in orders if x['user']['status'] == 'ingame' and x['order_type'] == 'sell' and x['visible'] == True and x['user']['ingame_name'] != user_name]
         
         sell_plat = 99999
+        username = None # Initialize username
         
         for order in item_orders:
-            if order['user']['status'] == 'ingame' and order['platinum'] < sell_plat:
+             # Check only platinum, user already filtered
+            if order['platinum'] < sell_plat:
                 sell_plat = order['platinum']
                 username = order['user']['ingame_name']
         
-        chat_message = '/w '+ username + 'Hi! I want to buy: ' + best_match_item['item_name'] + ' for ' + str(sell_plat) + ' platinum. (warframe.market)'
-                       #/w Jefferson231 Hi! I want to buy: Vauban Prime Systems for 45 platinum. (warframe.market)
-        try:
-            print("Copied to clipboard: \"{0}\"".format(chat_message))
-            pyperclip.copy(chat_message)
-        except:
-            print("Automatic copy to clipboard not supported on your OS")
+        if username: # Check if a suitable seller was found
+            chat_message = '/w '+ username + ' Hi! I want to buy: ' + best_match_item['item_name'] + ' for ' + str(sell_plat) + ' platinum. (warframe.market)'
+                           #/w Jefferson231 Hi! I want to buy: Vauban Prime Systems for 45 platinum. (warframe.market)
+            try:
+                print("Copied to clipboard: \"{0}\"".format(chat_message))
+                pyperclip.copy(chat_message)
+            except:
+                print("Automatic copy to clipboard not supported on your OS")
+        else:
+             print(f"Could not find any sellers (other than you) for \"{best_match_item['item_name']}\".")
         
     elif commands [:8].upper() == 'MSG SELL':    
     
@@ -507,21 +516,28 @@ Examples...
         orders = json.loads(requests.get("https://api.warframe.market/v1/items/{0}/orders".format(best_match_item['url_name'])).text)['payload']['orders']
         
         time.sleep(0.1) #Not sure why because I dont know much about python, but you had it above and I trust you.
-        item_orders = [x for x in orders if x['user']['status'] == 'ingame' and x['order_type'] == 'buy' and x['visible'] == True]
+         # Filter out own orders before processing
+        item_orders = [x for x in orders if x['user']['status'] == 'ingame' and x['order_type'] == 'buy' and x['visible'] == True and x['user']['ingame_name'] != user_name]
         
         buy_plat = 0
+        username = None # Initialize username
         
         for order in item_orders:
-            if order['user']['status'] == 'ingame' and order['platinum'] > buy_plat:
+             # Check only platinum, user already filtered
+            if order['platinum'] > buy_plat:
                 buy_plat = order['platinum']
                 username = order['user']['ingame_name']
         
-        chat_message = '/w '+ username + 'Hi! I want to sell: ' + best_match_item['item_name'] + ' for ' + str(buy_plat) + ' platinum. (warframe.market)'
-        try:
-            print("Copied to clipboard: \"{0}\"".format(chat_message))
-            pyperclip.copy(chat_message)
-        except:
-            print("Automatic copy to clipboard not supported on your OS")
+        if username: # Check if a suitable buyer was found
+            chat_message = '/w '+ username + ' Hi! I want to sell: ' + best_match_item['item_name'] + ' for ' + str(buy_plat) + ' platinum. (warframe.market)'
+            try:
+                print("Copied to clipboard: \"{0}\"".format(chat_message))
+                pyperclip.copy(chat_message)
+            except:
+                print("Automatic copy to clipboard not supported on your OS")
+        else:
+            print(f"Could not find any buyers (other than you) for \"{best_match_item['item_name']}\".")
+
     elif commands[:7].upper() == 'REPRICE':
        orders = json.loads(client.get(f'https://api.warframe.market/v1/profile/{user_name}/orders').text)['payload']
        all_orders = orders['buy_orders'] + orders['sell_orders']
@@ -563,14 +579,14 @@ Examples...
    
            if order_type == 'buy':
                plat = max(
-                   (o['platinum'] for o in market_orders if o['order_type'] == 'buy' and o['user']['status'] == 'ingame'),
+                   (o['platinum'] for o in market_orders if o['order_type'] == 'buy' and o['user']['status'] == 'ingame' and o['user']['ingame_name'] != user_name),
                    default=round(median_price * 1.1)
                )
                if plat > 1.5 * median_price or plat < 0.5 * median_price:
                    plat = round(1.1 * median_price)
            else:  # sell order
                plat = min(
-                   (o['platinum'] for o in market_orders if o['order_type'] == 'sell' and o['user']['status'] == 'ingame'),
+                   (o['platinum'] for o in market_orders if o['order_type'] == 'sell' and o['user']['status'] == 'ingame' and o['user']['ingame_name'] != user_name),
                    default=round(median_price * 0.9)
                )
                if plat > 1.5 * median_price or plat < 0.5 * median_price:
