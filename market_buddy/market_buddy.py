@@ -539,150 +539,156 @@ Examples...
             print(f"Could not find any buyers (other than you) for \"{best_match_item['item_name']}\".")
 
     elif commands[:7].upper() == 'REPRICE':
-       orders_data = json.loads(client.get(f'https://api.warframe.market/v1/profile/{user_name}/orders').text)['payload']
-       all_orders = orders_data['buy_orders'] + orders_data['sell_orders']
-       time.sleep(0.1)
+        orders_data = json.loads(client.get(f'https://api.warframe.market/v1/profile/{user_name}/orders').text)['payload']
+        all_orders = orders_data['buy_orders'] + orders_data['sell_orders']
+        time.sleep(0.1)
    
-       item_names = commands[7:].strip()
-       items_to_reprice_ids = set()
+        item_names = commands[7:].strip()
+        items_to_reprice_ids = set()
    
-       if item_names:
-           # Fuzzy-match specified items to get their IDs
-           for name in item_names.split(','):
-               name = name.strip()
-               best_match_item = None
-               best_match = 0
-               for item in item_list:
-                   # Use lower case for matching robustness
-                   match = fuzz.ratio(item['item_name'].lower(), name.lower())
-                   if match > best_match:
-                       best_match = match
-                       best_match_item = item
-               if best_match_item:
-                   items_to_reprice_ids.add(best_match_item['id'])
-           # Filter orders based on matched IDs
-           orders_to_process = [order for order in all_orders if order['item']['id'] in items_to_reprice_ids]
-       else:
-           # Reprice all if no specific items given
-           orders_to_process = all_orders
+        if item_names:
+            # Fuzzy-match specified items to get their IDs
+            for name in item_names.split(','):
+                name = name.strip()
+                best_match_item = None
+                best_match = 0
+                for item in item_list:
+                    # Use lower case for matching robustness
+                    match = fuzz.ratio(item['item_name'].lower(), name.lower())
+                    if match > best_match:
+                        best_match = match
+                        best_match_item = item
+                if best_match_item:
+                    items_to_reprice_ids.add(best_match_item['id'])
+            # Filter orders based on matched IDs
+            orders_to_process = [order for order in all_orders if order['item']['id'] in items_to_reprice_ids]
+        else:
+            # Reprice all if no specific items given
+            orders_to_process = all_orders
    
-       # Group orders by item ID and order type
-       grouped_orders = {}
-       for order in orders_to_process:
-           key = (order['item']['id'], order['order_type'])
-           if key not in grouped_orders:
-               grouped_orders[key] = {'orders': [], 'total_quantity': 0, 'item_details': order['item']}
-           grouped_orders[key]['orders'].append(order)
-           grouped_orders[key]['total_quantity'] += order['quantity']
+        # Group orders by item ID and order type
+        grouped_orders = {}
+        for order in orders_to_process:
+            key = (order['item']['id'], order['order_type'])
+            if key not in grouped_orders:
+                grouped_orders[key] = {'orders': [], 'total_quantity': 0, 'item_details': order['item']}
+            grouped_orders[key]['orders'].append(order)
+            grouped_orders[key]['total_quantity'] += order['quantity']
 
-       # Process each group
-       for (item_id, order_type), group_data in grouped_orders.items():
-           original_orders = group_data['orders']
-           total_quantity = group_data['total_quantity']
-           item_details = group_data['item_details']
-           item_url_name = item_details['url_name']
-           item_name = item_details['en']['item_name']
+        # Process each group
+        for (item_id, order_type), group_data in grouped_orders.items():
+            original_orders = group_data['orders']
+            total_quantity = group_data['total_quantity']
+            item_details = group_data['item_details']
+            item_url_name = item_details['url_name']
+            item_name = item_details['en']['item_name']
 
-           # Get median price
-           try:
-               stats_response = client.get(f"https://api.warframe.market/v1/items/{item_url_name}/statistics")
-               stats_response.raise_for_status() # Check for HTTP errors
-               stats = stats_response.json()['payload']['statistics_closed']['90days']
-               time.sleep(0.1)
-               median_price = median([x['median'] for x in stats[-5:]])
-               if median_price is None:
-                   print(f"WARN: Could not determine median price for \"{item_name}\". Skipping reprice for this item.") # Adjusted indentation
-                   continue
-           except requests.exceptions.RequestException as e:
-               print(f"ERROR: Failed to get statistics for \"{item_name}\": {e}. Skipping reprice.") # Adjusted indentation
-               time.sleep(0.1)
-               continue
-           except KeyError:
-               print(f"WARN: Unexpected statistics data format for \"{item_name}\". Skipping reprice.") # Adjusted indentation
-               continue
+            # Get median price
+            try:
+                stats_response = client.get(f"https://api.warframe.market/v1/items/{item_url_name}/statistics")
+                stats_response.raise_for_status() # Check for HTTP errors
+                stats = stats_response.json()['payload']['statistics_closed']['90days']
+                time.sleep(0.1)
+                median_price = median([x['median'] for x in stats[-5:]])
+                if median_price is None:
+                    print(f"WARN: Could not determine median price for \"{item_name}\". Skipping reprice for this item.") # Adjusted indentation
+                    continue
+            except requests.exceptions.RequestException as e:
+                print(f"ERROR: Failed to get statistics for \"{item_name}\": {e}. Skipping reprice.") # Adjusted indentation
+                time.sleep(0.1)
+                continue
+            except KeyError:
+                print(f"WARN: Unexpected statistics data format for \"{item_name}\". Skipping reprice.") # Adjusted indentation
+                continue
 
-           # Get current market orders
-           try:
-               market_orders_response = client.get(f"https://api.warframe.market/v1/items/{item_url_name}/orders")
-               market_orders_response.raise_for_status()
-               market_orders = market_orders_response.json()['payload']['orders']
-               time.sleep(0.1)
-           except requests.exceptions.RequestException as e:
-               print(f"ERROR: Failed to get market orders for \"{item_name}\": {e}. Skipping reprice.") # Adjusted indentation
-               time.sleep(0.1)
-               continue
-           except KeyError:
-               print(f"WARN: Unexpected market order data format for \"{item_name}\". Skipping reprice.") # Adjusted indentation
-               continue
+            # Get current market orders
+            try:
+                market_orders_response = client.get(f"https://api.warframe.market/v1/items/{item_url_name}/orders")
+                market_orders_response.raise_for_status()
+                market_orders = market_orders_response.json()['payload']['orders']
+                time.sleep(0.1)
+            except requests.exceptions.RequestException as e:
+                print(f"ERROR: Failed to get market orders for \"{item_name}\": {e}. Skipping reprice.") # Adjusted indentation
+                time.sleep(0.1)
+                continue
+            except KeyError:
+                print(f"WARN: Unexpected market order data format for \"{item_name}\". Skipping reprice.") # Adjusted indentation
+                continue
 
-           # Calculate new price based on type
-           plat = 0
-           if order_type == 'buy':
-               # Find max buy price among other active users
-               competing_buy_prices = [o['platinum'] for o in market_orders if o['order_type'] == 'buy' and o['user']['status'] == 'ingame' and o['user']['ingame_name'] != user_name]
-               max_plat = max(competing_buy_prices) if competing_buy_prices else 0
-               # Use median price as a fallback/sanity check
-               default_plat = round(median_price * 1.1)
-               # If current prices are wack, just go with the default price.
-               if not competing_buy_prices or max_plat > 1.5*median_price or max_plat < 0.5*median_price:
-                   plat = default_plat
-               else:
-                   plat = max_plat
+            # Calculate new price based on type
+            plat = 0
+            if order_type == 'buy':
+                # Find max buy price among other active users
+                competing_buy_prices = [o['platinum'] for o in market_orders if o['order_type'] == 'buy' and o['user']['status'] == 'ingame' and o['user']['ingame_name'] != user_name]
+                max_plat = max(competing_buy_prices) if competing_buy_prices else 0
+                # Use median price as a fallback/sanity check
+                default_plat = round(median_price * 1.1)
+                # If current prices are wack, just go with the default price.
+                if not competing_buy_prices or max_plat > 1.5*median_price or max_plat < 0.5*median_price:
+                    plat = default_plat
+                else:
+                    plat = max_plat
 
-           else:  # sell order
-               # Find min sell price among other active users
-               competing_sell_prices = [o['platinum'] for o in market_orders if o['order_type'] == 'sell' and o['user']['status'] == 'ingame' and o['user']['ingame_name'] != user_name]
-               min_plat = min(competing_sell_prices) if competing_sell_prices else 999999999 # High default if no sellers
-               # Use median price as fallback/sanity check
-               default_plat = round(median_price * 0.9)
-               # If current prices are wack, just go with the default price.
-               if not competing_sell_prices or min_plat > 1.5*median_price or min_plat < 0.5*median_price:
-                   plat = default_plat
-               else:
-                   plat = min_plat
+            else:  # sell order
+                # Find min sell price among other active users
+                competing_sell_prices = [o['platinum'] for o in market_orders if o['order_type'] == 'sell' and o['user']['status'] == 'ingame' and o['user']['ingame_name'] != user_name]
+                min_plat = min(competing_sell_prices) if competing_sell_prices else 999999999 # High default if no sellers
+                # Use median price as fallback/sanity check
+                default_plat = round(median_price * 0.9)
+                # If current prices are wack, just go with the default price.
+                if not competing_sell_prices or min_plat > 1.5*median_price or min_plat < 0.5*median_price:
+                    plat = default_plat
+                else:
+                    plat = min_plat
 
-           # Close original orders for this group
-           closed_count = 0
-           for order in original_orders:
-               try:
-                   close_response = client.put(f'https://api.warframe.market/v1/profile/orders/close/{order["id"]}')
-                   time.sleep(0.1)
-                   closed_count += 1
-               except requests.exceptions.RequestException as e:
-                   print(f"WARN: Failed to close order {order['id']}: {e}")
-                   time.sleep(0.1)
-           if closed_count < len(original_orders):
-                print(f"WARN: Only closed {closed_count}/{len(original_orders)} orders successfully.")
+            # Check if the existing order already matches the target price and quantity
+            if len(original_orders) == 1 and \\
+               original_orders[0]['platinum'] == plat and \\
+               original_orders[0]['quantity'] == total_quantity:
+               continue # Skip to the next item group
 
-           # Create the new consolidated order
-           payload = {
-               'order_type': order_type,
-               'item_id': item_id,
-               'platinum': plat,
-               'quantity': total_quantity
-           }
-           additional_headers = {
-               "language": "en", "accept-language": "en-US,en;q=0.9", "platform": "pc",
-               "origin": "https://warframe.market", "referer": "https://warframe.market/",
-               "accept": "application/json", "accept-encoding": "gzip, deflate, br"
-           }
+            # Close original orders for this group
+            closed_count = 0
+            for order in original_orders:
+                try:
+                    close_response = client.put(f'https://api.warframe.market/v1/profile/orders/close/{order["id"]}')
+                    time.sleep(0.1)
+                    closed_count += 1
+                except requests.exceptions.RequestException as e:
+                    print(f"WARN: Failed to close order {order['id']}: {e}")
+                    time.sleep(0.1)
+            if closed_count < len(original_orders):
+                 print(f"WARN: Only closed {closed_count}/{len(original_orders)} orders successfully.")
 
-           try:
-               post_response = client.post('https://api.warframe.market/v1/profile/orders', headers=additional_headers, json=payload)
-               time.sleep(0.1)
-               if post_response.status_code != 200:
-                   payload['mod_rank'] = 0
-                   post_response = client.post('https://api.warframe.market/v1/profile/orders', headers=additional_headers, json=payload)
-                   time.sleep(0.1)
+            # Create the new consolidated order
+            payload = {
+                'order_type': order_type,
+                'item_id': item_id,
+                'platinum': plat,
+                'quantity': total_quantity
+            }
+            additional_headers = {
+                "language": "en", "accept-language": "en-US,en;q=0.9", "platform": "pc",
+                "origin": "https://warframe.market", "referer": "https://warframe.market/",
+                "accept": "application/json", "accept-encoding": "gzip, deflate, br"
+            }
 
-               if post_response.status_code == 200:
-                    print(f'REPRICED {order_type.upper()} ORDER FOR {total_quantity}x "{item_name}" TO {plat}p')
-               else:
-                   print(f'ERROR: Failed to create new order for "{item_name}" after retry. Status: {post_response.status_code}, Response: {post_response.text}')
+            try:
+                post_response = client.post('https://api.warframe.market/v1/profile/orders', headers=additional_headers, json=payload)
+                time.sleep(0.1)
+                if post_response.status_code != 200:
+                    payload['mod_rank'] = 0
+                    post_response = client.post('https://api.warframe.market/v1/profile/orders', headers=additional_headers, json=payload)
+                    time.sleep(0.1)
 
-           except requests.exceptions.RequestException as e:
-               print(f"ERROR: Failed to post new order for \"{item_name}\": {e}")
-               time.sleep(0.1)
+                if post_response.status_code == 200:
+                     print(f'REPRICED {order_type.upper()} ORDER FOR {total_quantity}x "{item_name}" TO {plat}p')
+                else:
+                    print(f'ERROR: Failed to create new order for "{item_name}" after retry. Status: {post_response.status_code}, Response: {post_response.text}')
+
+            except requests.exceptions.RequestException as e:
+                print(f"ERROR: Failed to post new order for \"{item_name}\": {e}")
+                time.sleep(0.1)
 
     else:
         print("Couldn't recognize the command, if you need help, you can type \"Help\" to get a list of commands.")
