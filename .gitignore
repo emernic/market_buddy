@@ -3,3 +3,4 @@ dist/*
 market_buddy.egg-info
 Inno/*
 market_buddy/secret.txt
+secret.txt
