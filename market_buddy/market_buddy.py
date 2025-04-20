@@ -642,10 +642,12 @@ Examples...
                     plat = min_plat
 
             # Check if the existing order already matches the target price and quantity
-            if len(original_orders) == 1 and \\
-               original_orders[0]['platinum'] == plat and \\
-               original_orders[0]['quantity'] == total_quantity:
-               continue # Skip to the next item group
+            if (
+                len(original_orders) == 1 and 
+                original_orders[0]['platinum'] == plat and 
+                original_orders[0]['quantity'] == total_quantity
+            ):
+                continue
 
             # Close original orders for this group
             closed_count = 0
