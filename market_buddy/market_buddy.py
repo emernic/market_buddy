@@ -716,7 +716,7 @@ Examples...
             
             # Create a pretty table
             table = PrettyTable()
-            table.field_names = ["Item Name", "Type", "Status", "Initial Vaulting", "Last Resurgence"]
+            table.field_names = ["Item Name", "Type", "Status", "Initial Vaulting", "Last Resurgence", "Current", "90d Low", "90d High"]
             
             # Add rows to the table
             for _, row in sorted_df.iterrows():
@@ -726,7 +726,48 @@ Examples...
                 initial_vaulting = row['Initial Vaulting(YYYY-MM-DD)'].strftime('%Y-%m-%d')
                 last_resurgence = row['Last Resurgence(YYYY-MM-DD)'].strftime('%Y-%m-%d') if pd.notna(row['Last Resurgence(YYYY-MM-DD)']) else "N/A"
                 
-                table.add_row([item_name, item_type, status, initial_vaulting, last_resurgence])
+                # Find the item in the item_list to get its url_name
+                best_match_item = None
+                best_match = 0
+                for item in item_list:
+                    match = fuzz.ratio(item['item_name'], item_name)
+                    if match > best_match:
+                        best_match = match
+                        best_match_item = item
+                
+                # Initialize price data
+                current_price = "N/A"
+                low_price = "N/A"
+                high_price = "N/A"
+                
+                if best_match_item and best_match > 80:  # Ensure we have a good match
+                    try:
+                        # Fetch statistics for the item
+                        stats_response = client.get(f"https://api.warframe.market/v1/items/{best_match_item['url_name']}/statistics")
+                        if stats_response.status_code == 200:
+                            stats_data = stats_response.json()
+                            
+                            # Extract statistics from the response
+                            if 'payload' in stats_data and 'statistics_closed' in stats_data['payload'] and '90days' in stats_data['payload']['statistics_closed']:
+                                stats = stats_data['payload']['statistics_closed']['90days']
+                                if stats:
+                                    # Get current price (median of last 5 days)
+                                    current_price = median([x['median'] for x in stats[-5:] if 'median' in x and x['median'] is not None])
+                                    current_price = f"{int(current_price)}p" if current_price is not None else "N/A"
+                                    
+                                    # Get 90-day low
+                                    all_medians = [x['median'] for x in stats if 'median' in x and x['median'] is not None]
+                                    if all_medians:
+                                        low_price = f"{int(min(all_medians))}p"
+                                        high_price = f"{int(max(all_medians))}p"
+                        
+                        # Add a small delay to avoid hitting rate limits
+                        time.sleep(0.1)
+                    except Exception as e:
+                        print(f"Warning: Could not fetch price data for {item_name}: {e}")
+                
+                table.add_row([item_name, item_type, status, initial_vaulting, last_resurgence, 
+                              current_price, low_price, high_price])
             
             # Set table formatting
             table.align = "l"  # Left-align text
