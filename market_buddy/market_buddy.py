@@ -119,6 +119,9 @@ Examples...
 -Type "PC nekros prime, tigris prime, galatine prime handle" to get the minimun selling and maximum buying prices for these items at this moment.
 
 -Type "RH axi a1 a2 v5" to do a price check of all items that can drop from these relics.
+
+-Type "vaulted oldest" to see the 10 oldest vaulted items with pricing information.
+-Type "vaulted newest" to see the 10 most recently vaulted items with pricing information.
 """
             )
 
@@ -693,7 +696,13 @@ Examples...
                 print(f"ERROR: Failed to post new order for \"{item_name}\": {e}")
                 time.sleep(0.1)
 
-    elif commands.upper() == 'VAULTED':
+    elif commands[:7].upper() == 'VAULTED':
+        sub_command = commands[8:].strip().lower() if len(commands) > 8 else ''
+        
+        if not sub_command:
+            print("Please specify a sub-command: 'vaulted oldest' or 'vaulted newest'")
+            continue
+            
         print("Fetching Prime Vault information...")
         try:
             # Get the data from Warframe wiki
@@ -714,12 +723,21 @@ Examples...
             # Sort by the new column (oldest first)
             sorted_df = df.sort_values('Sort Date')
             
+            # Handle sub-commands to limit output
+            if sub_command in ['oldest', 'old']:
+                display_df = sorted_df.head(20)  # Show first 20 (oldest)
+            elif sub_command in ['newest', 'new']:
+                display_df = sorted_df.tail(20)  # Show last 20 (newest)
+            else:
+                print(f"Unknown sub-command: '{sub_command}'. Please use 'oldest' or 'newest'.")
+                continue
+            
             # Create a pretty table
             table = PrettyTable()
-            table.field_names = ["Item Name", "Type", "Status", "Initial Vaulting", "Last Resurgence", "Current", "90d Low", "90d High"]
+            table.field_names = ["Item Name", "Type", "Status", "Initial Vaulting", "Last Resurgence", "Current", "vs 90d Low", "vs 90d High"]
             
             # Add rows to the table
-            for _, row in sorted_df.iterrows():
+            for _, row in display_df.iterrows():
                 item_name = row['Item Name']
                 item_type = row['Item Type']
                 status = row['Current Status']
@@ -737,8 +755,8 @@ Examples...
                 
                 # Initialize price data
                 current_price = "N/A"
-                low_price = "N/A"
-                high_price = "N/A"
+                vs_low_price = "N/A"
+                vs_high_price = "N/A"
                 
                 if best_match_item and best_match > 80:  # Ensure we have a good match
                     try:
@@ -752,14 +770,34 @@ Examples...
                                 stats = stats_data['payload']['statistics_closed']['90days']
                                 if stats:
                                     # Get current price (median of last 5 days)
-                                    current_price = median([x['median'] for x in stats[-5:] if 'median' in x and x['median'] is not None])
-                                    current_price = f"{int(current_price)}p" if current_price is not None else "N/A"
+                                    current_median = median([x['median'] for x in stats[-5:] if 'median' in x and x['median'] is not None])
                                     
-                                    # Get 90-day low
+                                    # Get 90-day low and high
                                     all_medians = [x['median'] for x in stats if 'median' in x and x['median'] is not None]
-                                    if all_medians:
-                                        low_price = f"{int(min(all_medians))}p"
-                                        high_price = f"{int(max(all_medians))}p"
+                                    
+                                    if current_median is not None and all_medians:
+                                        current_price = f"{int(current_median)}p"
+                                        
+                                        # Calculate relative differences using 3rd lowest and 3rd highest instead of min/max
+                                        sorted_medians = sorted(all_medians)
+                                        
+                                        # Use 3rd lowest and 3rd highest if we have enough data points
+                                        if len(sorted_medians) >= 5:
+                                            min_price = sorted_medians[2]  # 3rd lowest
+                                            max_price = sorted_medians[-3]  # 3rd highest
+                                        else:
+                                            # Fall back to min/max for small datasets
+                                            min_price = min(sorted_medians)
+                                            max_price = max(sorted_medians)
+                                        
+                                        vs_low = int(current_median - min_price)
+                                        vs_high = int(current_median - max_price)
+                                        
+                                        # Format with + or - sign
+                                        vs_low_price = f"+{vs_low}p" if vs_low > 0 else f"{vs_low}p"
+                                        vs_high_price = f"+{vs_high}p" if vs_high > 0 else f"{vs_high}p"
+                                    else:
+                                        current_price = "N/A"
                         
                         # Add a small delay to avoid hitting rate limits
                         time.sleep(0.1)
@@ -767,7 +805,7 @@ Examples...
                         print(f"Warning: Could not fetch price data for {item_name}: {e}")
                 
                 table.add_row([item_name, item_type, status, initial_vaulting, last_resurgence, 
-                              current_price, low_price, high_price])
+                              current_price, vs_low_price, vs_high_price])
             
             # Set table formatting
             table.align = "l"  # Left-align text
