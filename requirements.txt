@@ -1,0 +1,8 @@
+requests
+lxml
+fuzzywuzzy
+matplotlib
+pyperclip
+prettytable
+pandas
+html5lib 

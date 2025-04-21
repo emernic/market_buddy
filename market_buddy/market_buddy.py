@@ -9,6 +9,7 @@ from fuzzywuzzy import fuzz
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import pyperclip
+import pandas as pd
 
 from prettytable import PrettyTable
 
@@ -691,6 +692,51 @@ Examples...
             except requests.exceptions.RequestException as e:
                 print(f"ERROR: Failed to post new order for \"{item_name}\": {e}")
                 time.sleep(0.1)
+
+    elif commands.upper() == 'VAULTED':
+        print("Fetching Prime Vault information...")
+        try:
+            # Get the data from Warframe wiki
+            df = next(t for t in pd.read_html('https://warframe.fandom.com/wiki/Prime_Vault')
+                  if 'Current Status' in t.columns and 'Permanent' not in ''.join(map(str, t.columns)))
+            
+            # Clean up the data
+            df['Item Name'] = df['Item Name'].str.replace('\u00a0', ' ')  # Replace non-breaking spaces
+            df['Current Status'] = df['Current Status'].map({'\u2611': 'Available', '\u2612': 'Vaulted'})
+            
+            # Convert date columns to datetime for proper sorting
+            df['Initial Vaulting(YYYY-MM-DD)'] = pd.to_datetime(df['Initial Vaulting(YYYY-MM-DD)'])
+            df['Last Resurgence(YYYY-MM-DD)'] = pd.to_datetime(df['Last Resurgence(YYYY-MM-DD)'], errors='coerce')
+            
+            # Create a new column for sorting - use Last Resurgence if available, otherwise use Initial Vaulting
+            df['Sort Date'] = df['Last Resurgence(YYYY-MM-DD)'].fillna(df['Initial Vaulting(YYYY-MM-DD)'])
+            
+            # Sort by the new column (oldest first)
+            sorted_df = df.sort_values('Sort Date')
+            
+            # Create a pretty table
+            table = PrettyTable()
+            table.field_names = ["Item Name", "Type", "Status", "Initial Vaulting", "Last Resurgence"]
+            
+            # Add rows to the table
+            for _, row in sorted_df.iterrows():
+                item_name = row['Item Name']
+                item_type = row['Item Type']
+                status = row['Current Status']
+                initial_vaulting = row['Initial Vaulting(YYYY-MM-DD)'].strftime('%Y-%m-%d')
+                last_resurgence = row['Last Resurgence(YYYY-MM-DD)'].strftime('%Y-%m-%d') if pd.notna(row['Last Resurgence(YYYY-MM-DD)']) else "N/A"
+                
+                table.add_row([item_name, item_type, status, initial_vaulting, last_resurgence])
+            
+            # Set table formatting
+            table.align = "l"  # Left-align text
+            table.max_width = 120  # Prevent overly wide tables
+            
+            # Print the table
+            print(table)
+            
+        except Exception as e:
+            print(f"An error occurred: {e}")
 
     else:
         print("Couldn't recognize the command, if you need help, you can type \"Help\" to get a list of commands.")
