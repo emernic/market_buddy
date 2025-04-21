@@ -122,6 +122,7 @@ Examples...
 
 -Type "vaulted oldest" to see the 10 oldest vaulted items with pricing information.
 -Type "vaulted newest" to see the 10 most recently vaulted items with pricing information.
+-Type "unvaulted" to see a list of newly released Prime Warframes that are not yet vaulted, with pricing information.
 """
             )
 
@@ -748,7 +749,7 @@ Examples...
                 best_match_item = None
                 best_match = 0
                 for item in item_list:
-                    match = fuzz.ratio(item['item_name'], item_name)
+                    match = fuzz.ratio(item['item_name'], item_name + " Set")
                     if match > best_match:
                         best_match = match
                         best_match_item = item
@@ -806,6 +807,103 @@ Examples...
                 
                 table.add_row([item_name, item_type, status, initial_vaulting, last_resurgence, 
                               current_price, vs_low_price, vs_high_price])
+            
+            # Set table formatting
+            table.align = "l"  # Left-align text
+            table.max_width = 120  # Prevent overly wide tables
+            
+            # Print the table
+            print(table)
+            
+        except Exception as e:
+            print(f"An error occurred: {e}")
+
+    elif commands[:9].upper() == 'UNVAULTED':
+        print("Fetching Prime Warframe release information...")
+        try:
+            # Get the Prime Warframes table (index 2 based on inspection)
+            tables = pd.read_html('https://warframe.fandom.com/wiki/Warframes_Comparison/Release_Dates')
+            df = tables[2]
+            
+            # Convert date to datetime for sorting
+            df['Release Date (yyyy-mm-dd)'] = pd.to_datetime(df['Release Date (yyyy-mm-dd)'])
+            
+            # Sort by release date, newest first
+            sorted_df = df.sort_values('Release Date (yyyy-mm-dd)', ascending=False)
+            
+            # Create a pretty table
+            table = PrettyTable()
+            table.field_names = ["Warframe Name", "Release Date", "Current", "vs 90d Low", "vs 90d High"]
+            
+            # Process rows until the first "Vaulted" entry
+            for _, row in sorted_df.iterrows():
+                if row['Vaulted'] == 'Vaulted':
+                    break
+                    
+                warframe_name = row['Warframe Name']
+                release_date = row['Release Date (yyyy-mm-dd)'].strftime('%Y-%m-%d')
+                
+                # Find the item in the item_list to get its url_name
+                best_match_item = None
+                best_match = 0
+                for item in item_list:
+                    match = fuzz.ratio(item['item_name'], warframe_name + " Prime Set")
+                    if match > best_match:
+                        best_match = match
+                        best_match_item = item
+                
+                # Initialize price data
+                current_price = "N/A"
+                vs_low_price = "N/A"
+                vs_high_price = "N/A"
+                
+                if best_match_item and best_match > 80:  # Ensure we have a good match
+                    try:
+                        # Fetch statistics for the item
+                        stats_response = client.get(f"https://api.warframe.market/v1/items/{best_match_item['url_name']}/statistics")
+                        if stats_response.status_code == 200:
+                            stats_data = stats_response.json()
+                            
+                            # Extract statistics from the response
+                            if 'payload' in stats_data and 'statistics_closed' in stats_data['payload'] and '90days' in stats_data['payload']['statistics_closed']:
+                                stats = stats_data['payload']['statistics_closed']['90days']
+                                if stats:
+                                    # Get current price (median of last 5 days)
+                                    current_median = median([x['median'] for x in stats[-5:] if 'median' in x and x['median'] is not None])
+                                    
+                                    # Get 90-day low and high
+                                    all_medians = [x['median'] for x in stats if 'median' in x and x['median'] is not None]
+                                    
+                                    if current_median is not None and all_medians:
+                                        current_price = f"{int(current_median)}p"
+                                        
+                                        # Calculate relative differences using 3rd lowest and 3rd highest instead of min/max
+                                        sorted_medians = sorted(all_medians)
+                                        
+                                        # Use 3rd lowest and 3rd highest if we have enough data points
+                                        if len(sorted_medians) >= 5:
+                                            min_price = sorted_medians[2]  # 3rd lowest
+                                            max_price = sorted_medians[-3]  # 3rd highest
+                                        else:
+                                            # Fall back to min/max for small datasets
+                                            min_price = min(sorted_medians)
+                                            max_price = max(sorted_medians)
+                                        
+                                        vs_low = int(current_median - min_price)
+                                        vs_high = int(current_median - max_price)
+                                        
+                                        # Format with + or - sign
+                                        vs_low_price = f"+{vs_low}p" if vs_low > 0 else f"{vs_low}p"
+                                        vs_high_price = f"+{vs_high}p" if vs_high > 0 else f"{vs_high}p"
+                                    else:
+                                        current_price = "N/A"
+                        
+                        # Add a small delay to avoid hitting rate limits
+                        time.sleep(0.1)
+                    except Exception as e:
+                        print(f"Warning: Could not fetch price data for {warframe_name}: {e}")
+                
+                table.add_row([warframe_name, release_date, current_price, vs_low_price, vs_high_price])
             
             # Set table formatting
             table.align = "l"  # Left-align text
