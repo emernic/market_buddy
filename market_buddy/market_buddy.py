@@ -10,6 +10,17 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import pyperclip
 import pandas as pd
+import io
+from PIL import ImageGrab, Image
+import threading
+import numpy as np
+
+# Fix for missing ANTIALIAS in newer PIL versions
+import PIL
+if not hasattr(PIL.Image, 'ANTIALIAS'):
+    PIL.Image.ANTIALIAS = PIL.Image.Resampling.LANCZOS
+
+import easyocr
 
 from prettytable import PrettyTable
 
@@ -123,6 +134,7 @@ Examples...
 -Type "vaulted oldest" to see the 10 oldest vaulted items with pricing information.
 -Type "vaulted newest" to see the 10 most recently vaulted items with pricing information.
 -Type "unvaulted" to see a list of newly released Prime Warframes that are not yet vaulted, with pricing information.
+-Type "inventory update" to enter screenshot monitoring mode for inventory tracking.
 """
             )
 
@@ -914,6 +926,152 @@ Examples...
             
         except Exception as e:
             print(f"An error occurred: {e}")
+
+    elif commands.upper() == 'INVENTORY UPDATE':
+        print("Inventory update mode: Use PrtScn to take screenshots of your inventory.")
+        print("Important: Wait 5 seconds between screenshots for processing!")
+        print("When finished, type Y+Enter to continue (or N to cancel).")
+        
+        stop_monitoring = threading.Event()
+        screenshots = []
+        
+        def monitor_clipboard():
+            last_clipboard = None
+            
+            try:
+                last_clipboard = ImageGrab.grabclipboard()
+            except OSError:
+                pass
+                
+            while not stop_monitoring.is_set():
+                try:
+                    clipboard_image = ImageGrab.grabclipboard()
+                    
+                    is_new_image = False
+                    if not isinstance(clipboard_image, Image.Image):
+                        continue
+                    elif not isinstance(last_clipboard, Image.Image):
+                        is_new_image = True
+                    elif clipboard_image.size != last_clipboard.size:
+                        is_new_image = True
+                    else:
+                        diff = 0
+                        for p1, p2 in zip(clipboard_image.getdata(), last_clipboard.getdata()):
+                            if isinstance(p1, tuple) and isinstance(p2, tuple):
+                                channel_diff = sum(abs(c1 - c2) for c1, c2 in zip(p1, p2))
+                                diff += channel_diff
+                            else:
+                                diff += abs(p1 - p2)
+                                
+                        is_new_image = diff > 100
+                    
+                    if is_new_image and clipboard_image:
+                        screenshots.append(clipboard_image)
+                        print(f"Screenshot {len(screenshots)} detected")
+                        last_clipboard = clipboard_image
+                except OSError:
+                    pass
+                except Exception as e:
+                    print(f"Warning: {str(e)}")
+        
+        monitor_thread = threading.Thread(target=monitor_clipboard)
+        monitor_thread.daemon = True
+        monitor_thread.start()
+        
+        user_input = input().lower()
+        stop_monitoring.set()
+        monitor_thread.join(timeout=1.0)
+        
+        if user_input == 'y' and screenshots:
+            print(f"\nProcessing {len(screenshots)} screenshots...")
+            reader = easyocr.Reader(['en'])
+            
+            all_items = []
+            
+            for i, screenshot in enumerate(screenshots):
+                img_np = np.array(screenshot)
+                height, width = img_np.shape[:2]
+                results = reader.readtext(img_np)
+                
+                text_blocks = []
+                digit_blocks = []
+                
+                for idx, (bbox, text, conf) in enumerate(results):
+                    block = {
+                        'idx': idx,
+                        'text': text,
+                        'center_x': sum(point[0] for point in bbox) / 4,
+                        'center_y': sum(point[1] for point in bbox) / 4,
+                    }
+                    
+                    if text.isdigit():
+                        digit_blocks.append(block)
+                    else:
+                        text_blocks.append(block)
+                
+                prime_blocks = [block for block in text_blocks if 'Prime' in block['text']]
+                
+                items = {}
+                
+                for prime_block in prime_blocks:
+                    associated_text = []
+                    
+                    for block in text_blocks:
+                        if block['idx'] == prime_block['idx']:
+                            continue
+                        
+                        x_dist = abs(block['center_x'] - prime_block['center_x'])
+                        x_dist_ratio = x_dist / width
+                        
+                        y_dist = abs(block['center_y'] - prime_block['center_y'])
+                        y_dist_ratio = y_dist / height
+                        
+                        is_horizontally_aligned = x_dist_ratio < 0.05
+                        is_vertically_close = y_dist_ratio < 0.07
+                        
+                        is_above = block['center_y'] < prime_block['center_y']
+                        
+                        if is_horizontally_aligned and is_vertically_close:
+                            position = "above" if is_above else "below"
+                            associated_text.append((block, position))
+                    
+                    quantity = 1
+                    min_dist = float('inf')
+                    
+                    for digit in digit_blocks:
+                        is_above = digit['center_y'] < prime_block['center_y']
+                        is_left = digit['center_x'] < prime_block['center_x']
+                        
+                        if is_above and is_left:
+                            dx = abs(digit['center_x'] - prime_block['center_x'])
+                            dy = abs(digit['center_y'] - prime_block['center_y'])
+                            
+                            # Convert to relative distances
+                            dx_ratio = dx / width
+                            dy_ratio = dy / height
+                            
+                            # Simple 2D distance using normalized coordinates
+                            dist_ratio = (dx_ratio**2 + dy_ratio**2)**0.5
+                            
+                            if dist_ratio < 0.15 and dist_ratio < min_dist:
+                                min_dist = dist_ratio
+                                quantity = int(digit['text'])
+                    
+                    full_name = prime_block['text']
+                    
+                    for block, position in sorted(associated_text, key=lambda x: x[0]['center_y']):
+                        if position == "above":
+                            full_name = block['text'] + " " + full_name
+                        else:
+                            full_name += " " + block['text']
+                    
+                    all_items[full_name] = quantity
+                
+            print("\nItems detected:")
+            for name, quantity in all_items.items():
+                print(f"{quantity} {name}")
+        else:
+            print("\nCancelling inventory update.")
 
     else:
         print("Couldn't recognize the command, if you need help, you can type \"Help\" to get a list of commands.")

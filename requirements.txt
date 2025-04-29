@@ -3,6 +3,11 @@ lxml
 fuzzywuzzy
 matplotlib
 pyperclip
-prettytable
 pandas
-html5lib 
+pillow
+prettytable
+numpy
+torch==1.13.1
+torchvision==0.14.1
+easyocr==1.6.2
+python-Levenshtein 
