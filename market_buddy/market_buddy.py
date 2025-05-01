@@ -1238,5 +1238,80 @@ Examples...
             
             print(table)
 
+    elif commands.upper() == 'INVENTORY SELL':
+        inventory_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'inventory.json')
+        if not os.path.exists(inventory_path):
+            print("No inventory data found.")
+            continue
+            
+        with open(inventory_path, 'r') as f:
+            inventory = json.load(f)
+            
+        # Get current sell orders
+        sell_orders = json.loads(client.get('https://api.warframe.market/v1/profile/{0}/orders'.format(user_name)).text)['payload']['sell_orders']
+        
+        # Track what we're already selling
+        selling_items = {}
+        for order in sell_orders:
+            item_name = order['item']['en']['item_name']
+            selling_items[item_name] = selling_items.get(item_name, 0) + order['quantity']
+        
+        # Process each inventory item
+        sellable_items = []
+        
+        for item_name, quantity in inventory.items():
+            # Skip items we're already selling
+            already_selling = selling_items.get(item_name, 0)
+            remaining_quantity = quantity - already_selling
+            
+            if remaining_quantity <= 0:
+                continue
+                
+            # Find the item in item_list by exact name
+            best_match_item = None
+            for item in item_list:
+                if item['item_name'] == item_name:
+                    best_match_item = item
+                    break
+                    
+            if not best_match_item:
+                continue
+                
+            # Get market data and calculate price
+            try:
+                stats = json.loads(client.get("https://api.warframe.market/v1/items/{0}/statistics".format(best_match_item['url_name'])).text)['payload']['statistics_closed']['90days']
+                median_price = median([x['median'] for x in stats[-5:]])
+                time.sleep(0.1)
+                
+                orders = json.loads(client.get("https://api.warframe.market/v1/items/{0}/orders".format(best_match_item['url_name'])).text)['payload']['orders']
+                
+                sell_orders = [x for x in orders if x['order_type'] == 'sell' and x['user']['status'] == 'ingame' and x['user']['ingame_name'] != user_name]
+                min_plat = 999999999
+                for order in sell_orders:
+                    if order['platinum'] < min_plat:
+                        min_plat = order['platinum']
+                
+                if min_plat > 1.5*median_price or min_plat < 0.5*median_price or min_plat == 999999999:
+                    plat = round(0.9*median_price)
+                else:
+                    plat = min_plat
+                    
+                # Only include items worth at least 7 plat
+                if plat >= 7:
+                    sellable_items.append((item_name, remaining_quantity, plat))
+                    
+                time.sleep(0.1)  # Avoid hitting rate limits
+            except:
+                continue
+        
+        # Sort by price (descending)
+        sellable_items.sort(key=lambda x: x[2], reverse=True)
+        
+        # Print sell commands
+        print(f"Found {sum(x[1] for x in sellable_items)} items worth selling with no active sell orders. Worth {sum(x[2] for x in sellable_items)}p")
+        print("\nSuggested sell commands (copy/paste these):")
+        for item_name, quantity, price in sellable_items:
+            print(f"sell {quantity} {item_name} {price}p")
+
     else:
         print("Couldn't recognize the command, if you need help, you can type \"Help\" to get a list of commands.")
