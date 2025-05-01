@@ -15,6 +15,7 @@ from PIL import ImageGrab, Image
 import threading
 import numpy as np
 import os
+import re
 
 # Fix for missing ANTIALIAS in newer PIL versions
 import PIL
@@ -136,6 +137,7 @@ Examples...
 -Type "vaulted newest" to see the 10 most recently vaulted items with pricing information.
 -Type "unvaulted" to see a list of newly released Prime Warframes that are not yet vaulted, with pricing information.
 -Type "inventory update" to enter screenshot monitoring mode for inventory tracking.
+-Type "relics" to scan screenshots of your relic inventory give refinement recommendations.
 """
             )
 
@@ -1102,6 +1104,80 @@ Examples...
                 json.dump(valid_items, f, indent=4)
         else:
             print("\nCancelling inventory update.")
+
+    elif commands.upper() == 'RELICS':
+        print("Relic scanning mode: Use PrtScn to take screenshots of your relic inventory.")
+        print("Wait 5 seconds between screenshots for processing!")
+        print("When finished, type Y+Enter to continue (or N to cancel).")
+        
+        stop_monitoring = threading.Event()
+        screenshots = []
+        
+        def monitor_clipboard():
+            last_clipboard = None
+            
+            try:
+                last_clipboard = ImageGrab.grabclipboard()
+            except OSError:
+                pass
+                
+            while not stop_monitoring.is_set():
+                try:
+                    clipboard_image = ImageGrab.grabclipboard()
+                    
+                    is_new_image = False
+                    if not isinstance(clipboard_image, Image.Image):
+                        continue
+                    elif not isinstance(last_clipboard, Image.Image):
+                        is_new_image = True
+                    elif clipboard_image.size != last_clipboard.size:
+                        is_new_image = True
+                    else:
+                        diff = 0
+                        for p1, p2 in zip(clipboard_image.getdata(), last_clipboard.getdata()):
+                            if isinstance(p1, tuple) and isinstance(p2, tuple):
+                                channel_diff = sum(abs(c1 - c2) for c1, c2 in zip(p1, p2))
+                                diff += channel_diff
+                            else:
+                                diff += abs(p1 - p2)
+                                
+                        is_new_image = diff > 100
+                    
+                    if is_new_image and clipboard_image:
+                        screenshots.append(clipboard_image)
+                        print(f"Screenshot {len(screenshots)} detected")
+                        last_clipboard = clipboard_image
+                except OSError:
+                    pass
+                except Exception as e:
+                    print(f"Warning: {str(e)}")
+        
+        monitor_thread = threading.Thread(target=monitor_clipboard)
+        monitor_thread.daemon = True
+        monitor_thread.start()
+        
+        user_input = input().lower()
+        stop_monitoring.set()
+        monitor_thread.join(timeout=1.0)
+        
+        if user_input == 'y' and screenshots:
+            print(f"\nProcessing {len(screenshots)} screenshots...")
+            reader = easyocr.Reader(['en'])
+            
+            all_relics = set()
+            relic_pattern = re.compile(r'^(Lith|Neo|Meso|Axi)\s+[A-Z][0-9]+\s+Relic$')
+            
+            for i, screenshot in enumerate(screenshots):
+                img_np = np.array(screenshot)
+                results = reader.readtext(img_np)
+                
+                for _, text, _ in results:
+                    if 'relic' in text.lower() and relic_pattern.match(text):
+                        all_relics.add(text)
+            
+            print("\nRelics detected:")
+            for relic in sorted(all_relics):
+                print(relic)
 
     else:
         print("Couldn't recognize the command, if you need help, you can type \"Help\" to get a list of commands.")
