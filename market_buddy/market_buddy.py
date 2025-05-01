@@ -1191,10 +1191,13 @@ Examples...
             
             print("\nRelics detected:")
             
-            table = PrettyTable(['Relic Name', 'Rare Drop'])
+            table = PrettyTable(['Relic Name', 'Rare Drop', 'Price'])
+            relic_values = []
             
             for relic_name in sorted(all_relics):
                 rare_drop = "Unknown"
+                rare_drop_url = None
+                price = 0
                 
                 # Remove "Relic" from the end to match format in relics_data
                 search_name = relic_name.replace(' Relic', '')
@@ -1204,9 +1207,27 @@ Examples...
                     for reward in relics_data[search_name]['rewards']:
                         if reward['rarity'] == 'Rare':
                             rare_drop = reward['item']['name']
+                            if 'warframeMarket' in reward['item'] and 'urlName' in reward['item']['warframeMarket']:
+                                rare_drop_url = reward['item']['warframeMarket']['urlName']
                             break
                 
-                table.add_row([relic_name, rare_drop])
+                # Get price for the rare item
+                if rare_drop_url:
+                    try:
+                        orders = json.loads(client.get(f"https://api.warframe.market/v1/items/{rare_drop_url}/orders").text)['payload']['orders']
+                        sell_orders = [o for o in orders if o['order_type'] == 'sell' and o['user']['status'] == 'ingame']
+                        if sell_orders:
+                            price = min(o['platinum'] for o in sell_orders)
+                    except:
+                        pass
+                
+                relic_values.append((relic_name, rare_drop, price))
+            
+            # Sort by price (descending) and take top 10
+            relic_values.sort(key=lambda x: x[2], reverse=True)
+            for relic_name, rare_drop, price in relic_values[:10]:
+                price_str = f"{price}p" if price > 0 else "N/A"
+                table.add_row([relic_name, rare_drop, price_str])
             
             print(table)
 
