@@ -1283,6 +1283,8 @@ Examples...
         with open(inventory_path, 'r') as f:
             inventory = json.load(f)
             
+        print("Calculating sell recommendations... This may take several minutes.")
+
         # Get current sell orders
         response = client.get(f'https://api.warframe.market/v1/profile/{user_name}/orders')
         response.raise_for_status()
@@ -1377,27 +1379,64 @@ Examples...
             most_valuable = items[0]
             related_items = []
             
+            set_price = None
             # If there are other items in this group, note them
             if len(items) > 1:
-                related_items = [(name, qty) for name, qty, _ in items[1:]]
+                related_items = [(name, qty, price) for name, qty, price in items[1:]]
             
-            sellable_items.append((most_valuable[0], most_valuable[1], most_valuable[2], related_items))
+                # Try to get the set price
+                set_name = f"{base_name} Set"
+                
+                # Find the set in item_list
+                set_item = None
+                for item in item_list:
+                    if item['item_name'] == set_name:
+                        set_item = item
+                        break
+                        
+                if set_item:
+                    response = client.get(f"https://api.warframe.market/v1/items/{set_item['url_name']}/statistics")
+                    response.raise_for_status()
+                    stats = response.json()['payload']['statistics_closed']['90days']
+                    median_price = median([x['median'] for x in stats[-5:]])
+                    time.sleep(0.1)
+                    
+                    response = client.get(f"https://api.warframe.market/v1/items/{set_item['url_name']}/orders")
+                    response.raise_for_status()
+                    orders = response.json()['payload']['orders']
+                    
+                    sell_orders = [x for x in orders if x['order_type'] == 'sell' and x['user']['status'] == 'ingame' and x['user']['ingame_name'] != user_name]
+                    min_plat = 999999999
+                    for order in sell_orders:
+                        if order['platinum'] < min_plat:
+                            min_plat = order['platinum']
+                    
+                    if min_plat > 1.5*median_price or min_plat < 0.5*median_price or min_plat == 999999999:
+                        set_price = round(0.9*median_price)
+                    else:
+                        set_price = min_plat
+                        
+                    time.sleep(0.1)
+            
+            sellable_items.append((most_valuable[0], most_valuable[1], most_valuable[2], related_items, set_price))
         
         # Sort by price (descending)
         sellable_items.sort(key=lambda x: x[2], reverse=True)
         
         # Print summary
-        total_items = sum(qty for _, qty, _, _ in sellable_items)
-        total_value = sum(qty * price for _, qty, price, _ in sellable_items)
+        total_items = sum(qty for _, qty, _, _, _ in sellable_items)
+        total_value = sum(qty * price for _, qty, price, _, _ in sellable_items)
         print(f"Found {total_items} items worth selling (excluding active sell orders). Worth {total_value}p")
         
         # Print sell commands
         print("Suggested sell commands (copy/paste these):")
-        for item_name, quantity, price, related_items in sellable_items:
+        for item_name, quantity, price, related_items, set_price in sellable_items:
+            if price < 7:
+                break
             print(f"sell {quantity} {item_name} {price}p")
             if related_items:
-                related_str = ", ".join([f"{qty} {name}" for name, qty in related_items])
-                print(f"  (Also own: {related_str})")
+                related_str = ", ".join([f"{qty} {name} ({price}p)" for name, qty, price in related_items])
+                print(f"  Also own: {related_str}. Set worth: {set_price}p")
 
     else:
         print("Couldn't recognize the command, if you need help, you can type \"Help\" to get a list of commands.")
