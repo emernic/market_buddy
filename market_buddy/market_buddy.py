@@ -1171,8 +1171,6 @@ Examples...
                     if 'relic' in text.lower() and relic_pattern.match(text):
                         all_relics.add(text)
             
-            print("\nRelics detected:")
-            
             table = PrettyTable(['Relic Name', 'Rare Drop', 'Price'])
             relic_values = []
             
