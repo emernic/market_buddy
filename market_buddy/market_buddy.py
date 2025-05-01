@@ -75,6 +75,20 @@ client.headers.update({'x-csrftoken': csrf})
 
 item_list = json.loads(client.get('https://api.warframe.market/v1/items').text)['payload']['items']
 
+# Load relic data
+try:
+    relics_raw = json.loads(requests.get('https://raw.githubusercontent.com/WFCD/warframe-items/refs/heads/master/data/json/Relics.json').text)
+    relics_data = {}
+    for relic in relics_raw:
+        if "Intact" in relic['name']:
+            # Extract just the tier and identifier (e.g., "Axi B12" from "Axi B12 Intact")
+            name_parts = relic['name'].split()
+            base_name = f"{name_parts[0]} {name_parts[1]}"
+            relics_data[base_name] = relic
+except:
+    print('WARNING: Failed to load relic data')
+    relics_data = {}
+
 user_name = json.loads(client.get('https://api.warframe.market/v1/profile').text)['profile']['ingame_name']
 
 # async def update_login_status(status):
@@ -966,7 +980,7 @@ Examples...
                             else:
                                 diff += abs(p1 - p2)
                                 
-                        is_new_image = diff > 100
+                        is_new_image = diff > 10
                     
                     if is_new_image and clipboard_image:
                         screenshots.append(clipboard_image)
@@ -1141,7 +1155,7 @@ Examples...
                             else:
                                 diff += abs(p1 - p2)
                                 
-                        is_new_image = diff > 100
+                        is_new_image = diff > 10
                     
                     if is_new_image and clipboard_image:
                         screenshots.append(clipboard_image)
@@ -1176,8 +1190,25 @@ Examples...
                         all_relics.add(text)
             
             print("\nRelics detected:")
-            for relic in sorted(all_relics):
-                print(relic)
+            
+            table = PrettyTable(['Relic Name', 'Rare Drop'])
+            
+            for relic_name in sorted(all_relics):
+                rare_drop = "Unknown"
+                
+                # Remove "Relic" from the end to match format in relics_data
+                search_name = relic_name.replace(' Relic', '')
+                
+                # Direct dictionary lookup
+                if search_name in relics_data:
+                    for reward in relics_data[search_name]['rewards']:
+                        if reward['rarity'] == 'Rare':
+                            rare_drop = reward['item']['name']
+                            break
+                
+                table.add_row([relic_name, rare_drop])
+            
+            print(table)
 
     else:
         print("Couldn't recognize the command, if you need help, you can type \"Help\" to get a list of commands.")
