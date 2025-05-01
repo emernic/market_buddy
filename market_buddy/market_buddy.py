@@ -276,6 +276,19 @@ Examples...
                     best_match = match
                     best_match_item = item
 
+            # Update inventory if it exists
+            inventory_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'inventory.json')
+            if os.path.exists(inventory_path):
+                with open(inventory_path, 'r') as f:
+                    inventory = json.load(f)
+                
+                if best_match_item['item_name'] in inventory:
+                    inventory[best_match_item['item_name']] -= quantity
+                    if inventory[best_match_item['item_name']] <= 0:
+                        del inventory[best_match_item['item_name']]
+                    
+                    with open(inventory_path, 'w') as f:
+                        json.dump(inventory, f, indent=4)
 
             orders = json.loads(client.get('https://api.warframe.market/v1/profile/{0}/orders'.format(user_name)).text)['payload']['sell_orders']
 
@@ -315,6 +328,19 @@ Examples...
                     best_match = match
                     best_match_item = item
 
+            # Update inventory if it exists
+            inventory_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'inventory.json')
+            if os.path.exists(inventory_path):
+                with open(inventory_path, 'r') as f:
+                    inventory = json.load(f)
+                
+                if best_match_item['item_name'] in inventory:
+                    inventory[best_match_item['item_name']] += quantity
+                else:
+                    inventory[best_match_item['item_name']] = quantity
+                
+                with open(inventory_path, 'w') as f:
+                    json.dump(inventory, f, indent=4)
 
             orders = json.loads(client.get('https://api.warframe.market/v1/profile/{0}/orders'.format(user_name)).text)['payload']['buy_orders']
 
