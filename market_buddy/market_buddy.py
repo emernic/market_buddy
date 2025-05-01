@@ -1218,6 +1218,7 @@ Examples...
                         sell_orders = [o for o in orders if o['order_type'] == 'sell' and o['user']['status'] == 'ingame']
                         if sell_orders:
                             price = min(o['platinum'] for o in sell_orders)
+                        time.sleep(0.1)
                     except:
                         pass
                 
