@@ -1286,21 +1286,39 @@ Examples...
         # Get current sell orders
         response = client.get(f'https://api.warframe.market/v1/profile/{user_name}/orders')
         response.raise_for_status()
-        sell_orders = response.json()['payload']['sell_orders']
+        response_json = response.json()
+        sell_orders = response_json['payload']['sell_orders']
         
         # Track what we're already selling
         selling_items = {}
+        selling_sets = {}
         for order in sell_orders:
             item_name = order['item']['en']['item_name']
-            selling_items[item_name] = selling_items.get(item_name, 0) + order['quantity']
-        
-        # Process each inventory item
-        sellable_items = []
+            # Check if this is a set (ends with "Set")
+            if item_name.endswith(" Set"):
+                base_name = item_name[:-4].strip()  # Remove " Set" from the end
+                selling_sets[base_name] = selling_sets.get(base_name, 0) + order['quantity']
+            else:  
+                selling_items[item_name] = selling_items.get(item_name, 0) + order['quantity']
+            
+        # Group inventory items by their base name (part before "Prime")
+        item_groups = {}
         
         for item_name, quantity in inventory.items():
             # Skip items we're already selling
             already_selling = selling_items.get(item_name, 0)
             remaining_quantity = quantity - already_selling
+            
+            if "Prime" not in item_name or remaining_quantity <= 0:
+                continue
+                
+            # Find the base name (part before "Prime" plus "Prime")
+            name_parts = item_name.split("Prime")
+            base_name = name_parts[0].strip() + " Prime"
+            
+            # Subtract 1 for each set we're selling that would include this item
+            set_count = selling_sets.get(base_name, 0)
+            remaining_quantity -= set_count
             
             if remaining_quantity <= 0:
                 continue
@@ -1314,7 +1332,11 @@ Examples...
                     
             if not best_match_item:
                 continue
-                
+            
+            # Initialize group if needed
+            if base_name not in item_groups:
+                item_groups[base_name] = []
+            
             # Get market data and calculate price
             try:
                 response = client.get(f"https://api.warframe.market/v1/items/{best_match_item['url_name']}/statistics")
@@ -1338,22 +1360,44 @@ Examples...
                 else:
                     plat = min_plat
                     
-                # Only include items worth at least 7 plat
-                if plat >= 7:
-                    sellable_items.append((item_name, remaining_quantity, plat))
+                item_groups[base_name].append((item_name, remaining_quantity, plat))
                     
                 time.sleep(0.1)  # Avoid hitting rate limits
             except:
                 continue
         
+        # Find most valuable item from each group
+        sellable_items = []
+        
+        for base_name, items in item_groups.items():
+            # Sort items by price (descending)
+            items.sort(key=lambda x: x[2], reverse=True)
+            
+            # Take the most valuable item
+            most_valuable = items[0]
+            related_items = []
+            
+            # If there are other items in this group, note them
+            if len(items) > 1:
+                related_items = [(name, qty) for name, qty, _ in items[1:]]
+            
+            sellable_items.append((most_valuable[0], most_valuable[1], most_valuable[2], related_items))
+        
         # Sort by price (descending)
         sellable_items.sort(key=lambda x: x[2], reverse=True)
         
+        # Print summary
+        total_items = sum(qty for _, qty, _, _ in sellable_items)
+        total_value = sum(qty * price for _, qty, price, _ in sellable_items)
+        print(f"Found {total_items} items worth selling (excluding active sell orders). Worth {total_value}p")
+        
         # Print sell commands
-        print(f"Found {sum(x[1] for x in sellable_items)} items worth selling with no active sell orders. Worth {sum(x[2] for x in sellable_items)}p")
-        print("\nSuggested sell commands (copy/paste these):")
-        for item_name, quantity, price in sellable_items:
+        print("Suggested sell commands (copy/paste these):")
+        for item_name, quantity, price, related_items in sellable_items:
             print(f"sell {quantity} {item_name} {price}p")
+            if related_items:
+                related_str = ", ".join([f"{qty} {name}" for name, qty in related_items])
+                print(f"  (Also own: {related_str})")
 
     else:
         print("Couldn't recognize the command, if you need help, you can type \"Help\" to get a list of commands.")
