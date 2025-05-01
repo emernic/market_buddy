@@ -14,6 +14,7 @@ import io
 from PIL import ImageGrab, Image
 import threading
 import numpy as np
+import os
 
 # Fix for missing ANTIALIAS in newer PIL versions
 import PIL
@@ -986,7 +987,7 @@ Examples...
             print(f"\nProcessing {len(screenshots)} screenshots...")
             reader = easyocr.Reader(['en'])
             
-            all_items = []
+            all_items = {}
             
             for i, screenshot in enumerate(screenshots):
                 img_np = np.array(screenshot)
@@ -1068,8 +1069,37 @@ Examples...
                     all_items[full_name] = quantity
                 
             print("\nItems detected:")
+            valid_items = {}
             for name, quantity in all_items.items():
-                print(f"{quantity} {name}")
+                # Try exact match first
+                item_match = False
+                for item in item_list:
+                    if item['item_name'] == name:
+                        item_match = True
+                        valid_items[name] = quantity
+                        print(f"{quantity} {name}")
+                        break
+                
+                # If no exact match, try fuzzy matching with a threshold
+                if not item_match:
+                    best_match_item = None
+                    best_match_score = 0
+                    for item in item_list:
+                        match_score = fuzz.ratio(item['item_name'], name)
+                        if match_score > best_match_score:
+                            best_match_score = match_score
+                            best_match_item = item
+                    
+                    # Only accept fuzzy matches above a reasonable threshold (85)
+                    if best_match_score >= 85:
+                        print(f"{best_match_item['item_name']} {quantity}")
+                        valid_items[best_match_item['item_name']] = quantity
+                    else:
+                        print(f"WARNING: Could not find match for '{name}' in item database (best match: {best_match_item['item_name']} with score {best_match_score})")
+            
+            # Save inventory to JSON file
+            with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'inventory.json'), 'w') as f:
+                json.dump(valid_items, f, indent=4)
         else:
             print("\nCancelling inventory update.")
 
