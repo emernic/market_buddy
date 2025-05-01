@@ -69,11 +69,14 @@ client.headers.update({'cookie': cookie})
 
 HOME = 'https://warframe.market/'
 r = client.get(HOME)
+r.raise_for_status()
 tree = html.fromstring(r.text)
 csrf = tree.xpath('//meta[@name="csrf-token"]/attribute::content')[0]
 client.headers.update({'x-csrftoken': csrf})
 
-item_list = json.loads(client.get('https://api.warframe.market/v1/items').text)['payload']['items']
+response = client.get('https://api.warframe.market/v1/items')
+response.raise_for_status()
+item_list = response.json()['payload']['items']
 
 # Load relic data
 try:
@@ -89,7 +92,9 @@ except:
     print('WARNING: Failed to load relic data')
     relics_data = {}
 
-user_name = json.loads(client.get('https://api.warframe.market/v1/profile').text)['profile']['ingame_name']
+response = client.get('https://api.warframe.market/v1/profile')
+response.raise_for_status()
+user_name = response.json()['profile']['ingame_name']
 
 # async def update_login_status(status):
 #     async with websockets.connect("wss://warframe.market/socket") as websocket:
@@ -174,10 +179,14 @@ Examples...
                     best_match_item = item
 
 
-            stats = json.loads(client.get("https://api.warframe.market/v1/items/{0}/statistics".format(best_match_item['url_name'])).text)['payload']['statistics_closed']['90days']
+            response = client.get(f"https://api.warframe.market/v1/items/{best_match_item['url_name']}/statistics")
+            response.raise_for_status()
+            stats = response.json()['payload']['statistics_closed']['90days']
             median_price = median([x['median'] for x in stats[-5:]])
 
-            orders = json.loads(client.get("https://api.warframe.market/v1/items/{0}/orders".format(best_match_item['url_name'])).text)['payload']['orders']
+            response = client.get(f"https://api.warframe.market/v1/items/{best_match_item['url_name']}/orders")
+            response.raise_for_status()
+            orders = response.json()['payload']['orders']
 
             buy_orders = [x for x in orders if x['order_type'] == 'buy' and x['user']['status'] == 'ingame']
             max_plat = 0
@@ -225,10 +234,14 @@ Examples...
                     best_match = match
                     best_match_item = item
 
-            stats = json.loads(client.get("https://api.warframe.market/v1/items/{0}/statistics".format(best_match_item['url_name'])).text)['payload']['statistics_closed']['90days']
+            response = client.get(f"https://api.warframe.market/v1/items/{best_match_item['url_name']}/statistics")
+            response.raise_for_status()
+            stats = response.json()['payload']['statistics_closed']['90days']
             median_price = median([x['median'] for x in stats[-5:]])
 
-            orders = json.loads(client.get("https://api.warframe.market/v1/items/{0}/orders".format(best_match_item['url_name'])).text)['payload']['orders']
+            response = client.get(f"https://api.warframe.market/v1/items/{best_match_item['url_name']}/orders")
+            response.raise_for_status()
+            orders = response.json()['payload']['orders']
 
             buy_orders = [x for x in orders if x['order_type'] == 'sell' and x['user']['status'] == 'ingame']
             min_plat = 999999999
@@ -290,7 +303,9 @@ Examples...
                     with open(inventory_path, 'w') as f:
                         json.dump(inventory, f, indent=4)
 
-            orders = json.loads(client.get('https://api.warframe.market/v1/profile/{0}/orders'.format(user_name)).text)['payload']['sell_orders']
+            response = client.get(f'https://api.warframe.market/v1/profile/{user_name}/orders')
+            response.raise_for_status()
+            orders = response.json()['payload']['sell_orders']
 
             selected_orders = []
             for order in orders:
@@ -342,7 +357,9 @@ Examples...
                 with open(inventory_path, 'w') as f:
                     json.dump(inventory, f, indent=4)
 
-            orders = json.loads(client.get('https://api.warframe.market/v1/profile/{0}/orders'.format(user_name)).text)['payload']['buy_orders']
+            response = client.get(f'https://api.warframe.market/v1/profile/{user_name}/orders')
+            response.raise_for_status()
+            orders = response.json()['payload']['buy_orders']
 
             selected_orders = []
             for order in orders:
@@ -362,7 +379,9 @@ Examples...
                 print("COULD NOT FIND {0} BUY ORDERS FOR \"{1}\"".format(quantity_left, best_match_item['item_name']))
 
     elif commands[:8].upper() == "CHAT WTB":
-        orders = json.loads(client.get('https://api.warframe.market/v1/profile/{0}/orders'.format(user_name)).text)['payload']['buy_orders']
+        response = client.get(f'https://api.warframe.market/v1/profile/{user_name}/orders')
+        response.raise_for_status()
+        orders = response.json()['payload']['buy_orders']
         sorted_by_plat = sorted(orders, key=lambda x: x['platinum'], reverse=True)
 
         chat_message = 'WTB'
@@ -377,7 +396,9 @@ Examples...
                     print("Automatic copy to clipboard not supported on your OS")
 
     elif commands[:8].upper() == "CHAT WTS":
-        orders = json.loads(client.get('https://api.warframe.market/v1/profile/{0}/orders'.format(user_name)).text)['payload']['sell_orders']
+        response = client.get(f'https://api.warframe.market/v1/profile/{user_name}/orders')
+        response.raise_for_status()
+        orders = response.json()['payload']['sell_orders']
         sorted_by_plat = sorted(orders, key=lambda x: x['platinum'], reverse=True)
 
         chat_message = 'WTS'
@@ -393,9 +414,11 @@ Examples...
 
     elif commands[:5].upper() == "CHAT":
         # TODO: Don't say wtb/wts if you dont have anything to buy or sell, and do a better job when it's an uneven split
-        buy_orders = json.loads(client.get('https://api.warframe.market/v1/profile/{0}/orders'.format(user_name)).text)['payload']['buy_orders']
-
-        sell_orders = json.loads(client.get('https://api.warframe.market/v1/profile/{0}/orders'.format(user_name)).text)['payload']['sell_orders']
+        response = client.get(f'https://api.warframe.market/v1/profile/{user_name}/orders')
+        response.raise_for_status()
+        response_json = response.json()
+        buy_orders = response_json['payload']['buy_orders']
+        sell_orders = response_json['payload']['sell_orders']
 
         orders = buy_orders + sell_orders
         sorted_by_plat = sorted(orders, key=lambda x: x['platinum'], reverse=True)
@@ -428,13 +451,16 @@ Examples...
                 print("Automatic copy to clipboard not supported on your OS")
 
     elif commands[:6].upper() == 'ORDERS':
-        sell_orders = client.get('https://api.warframe.market/v1/profile/{0}/orders'.format(user_name)).json()['payload']['sell_orders']
+        response = client.get(f'https://api.warframe.market/v1/profile/{user_name}/orders')
+        response.raise_for_status()
+        response_json = response.json()
+        sell_orders = response_json['payload']['sell_orders']
         sell_orders_sorted = sorted(sell_orders, key=lambda x: x['platinum'], reverse=True)
 
         for order in sell_orders_sorted:
             print("SELL ORDER FOR {0} \"{1}\" AT {2}p EACH".format(order['quantity'], order['item']['en']['item_name'], order['platinum']))
 
-        buy_orders = json.loads(client.get('https://api.warframe.market/v1/profile/{0}/orders'.format(user_name)).text)['payload']['buy_orders']
+        buy_orders = response_json['payload']['buy_orders']
         buy_orders_sorted = sorted(buy_orders, key=lambda x: x['platinum'], reverse=True)
 
         for order in buy_orders_sorted:
@@ -451,7 +477,9 @@ Examples...
                     best_match = match
                     best_match_item = item
 
-            stats = json.loads(client.get("https://api.warframe.market/v1/items/{0}/statistics".format(best_match_item['url_name'])).text)['payload']['statistics_closed']['90days']
+            response = client.get(f"https://api.warframe.market/v1/items/{best_match_item['url_name']}/statistics")
+            response.raise_for_status()
+            stats = response.json()['payload']['statistics_closed']['90days']
 
             median_prices = [x['median'] for x in stats]
             relative_dates = range(-len(median_prices), 0)
@@ -480,7 +508,9 @@ Examples...
                     best_match = match
                     best_match_item = item
                     
-            orders = json.loads(client.get("https://api.warframe.market/v1/items/{0}/orders".format(best_match_item['url_name'])).text)['payload']['orders']
+            response = client.get(f"https://api.warframe.market/v1/items/{best_match_item['url_name']}/orders")
+            response.raise_for_status()
+            orders = response.json()['payload']['orders']
             
             # Filter out own orders before processing
             item_orders = [x for x in orders if x['user']['status'] == 'ingame' and x['user']['ingame_name'] != user_name] 
@@ -535,9 +565,11 @@ Examples...
                 best_match = match
                 best_match_item = item
                 
-        orders = json.loads(requests.get("https://api.warframe.market/v1/items/{0}/orders".format(best_match_item['url_name'])).text)['payload']['orders']
+        response = client.get(f"https://api.warframe.market/v1/items/{best_match_item['url_name']}/orders")
+        response.raise_for_status()
+        orders = response.json()['payload']['orders']
         
-        time.sleep(0.1) #Not sure why because I dont know much about python, but you had it above and I trust you.
+        time.sleep(0.1)
         # Filter out own orders before processing
         item_orders = [x for x in orders if x['user']['status'] == 'ingame' and x['order_type'] == 'sell' and x['visible'] == True and x['user']['ingame_name'] != user_name]
         
@@ -573,10 +605,12 @@ Examples...
                 best_match = match
                 best_match_item = item
                 
-        orders = json.loads(requests.get("https://api.warframe.market/v1/items/{0}/orders".format(best_match_item['url_name'])).text)['payload']['orders']
+        response = client.get(f"https://api.warframe.market/v1/items/{best_match_item['url_name']}/orders")
+        response.raise_for_status()
+        orders = response.json()['payload']['orders']
         
-        time.sleep(0.1) #Not sure why because I dont know much about python, but you had it above and I trust you.
-         # Filter out own orders before processing
+        time.sleep(0.1)
+        # Filter out own orders before processing
         item_orders = [x for x in orders if x['user']['status'] == 'ingame' and x['order_type'] == 'buy' and x['visible'] == True and x['user']['ingame_name'] != user_name]
         
         buy_plat = 0
@@ -645,9 +679,9 @@ Examples...
 
             # Get median price
             try:
-                stats_response = client.get(f"https://api.warframe.market/v1/items/{item_url_name}/statistics")
-                stats_response.raise_for_status() # Check for HTTP errors
-                stats = stats_response.json()['payload']['statistics_closed']['90days']
+                response = client.get(f"https://api.warframe.market/v1/items/{item_url_name}/statistics")
+                response.raise_for_status()
+                stats = response.json()['payload']['statistics_closed']['90days']
                 time.sleep(0.1)
                 median_price = median([x['median'] for x in stats[-5:]])
                 if median_price is None:
@@ -663,9 +697,9 @@ Examples...
 
             # Get current market orders
             try:
-                market_orders_response = client.get(f"https://api.warframe.market/v1/items/{item_url_name}/orders")
-                market_orders_response.raise_for_status()
-                market_orders = market_orders_response.json()['payload']['orders']
+                response = client.get(f"https://api.warframe.market/v1/items/{item_url_name}/orders")
+                response.raise_for_status()
+                market_orders = response.json()['payload']['orders']
                 time.sleep(0.1)
             except requests.exceptions.RequestException as e:
                 print(f"ERROR: Failed to get market orders for \"{item_name}\": {e}. Skipping reprice.") # Adjusted indentation
@@ -817,9 +851,9 @@ Examples...
                 if best_match_item and best_match > 80:  # Ensure we have a good match
                     try:
                         # Fetch statistics for the item
-                        stats_response = client.get(f"https://api.warframe.market/v1/items/{best_match_item['url_name']}/statistics")
-                        if stats_response.status_code == 200:
-                            stats_data = stats_response.json()
+                        response = client.get(f"https://api.warframe.market/v1/items/{best_match_item['url_name']}/statistics")
+                        if response.status_code == 200:
+                            stats_data = response.json()
                             
                             # Extract statistics from the response
                             if 'payload' in stats_data and 'statistics_closed' in stats_data['payload'] and '90days' in stats_data['payload']['statistics_closed']:
@@ -915,9 +949,9 @@ Examples...
                 if best_match_item and best_match > 80:  # Ensure we have a good match
                     try:
                         # Fetch statistics for the item
-                        stats_response = client.get(f"https://api.warframe.market/v1/items/{best_match_item['url_name']}/statistics")
-                        if stats_response.status_code == 200:
-                            stats_data = stats_response.json()
+                        response = client.get(f"https://api.warframe.market/v1/items/{best_match_item['url_name']}/statistics")
+                        if response.status_code == 200:
+                            stats_data = response.json()
                             
                             # Extract statistics from the response
                             if 'payload' in stats_data and 'statistics_closed' in stats_data['payload'] and '90days' in stats_data['payload']['statistics_closed']:
@@ -1220,7 +1254,9 @@ Examples...
                 # Get price for the rare item
                 if rare_drop_url:
                     try:
-                        orders = json.loads(client.get(f"https://api.warframe.market/v1/items/{rare_drop_url}/orders").text)['payload']['orders']
+                        response = client.get(f"https://api.warframe.market/v1/items/{rare_drop_url}/orders")
+                        response.raise_for_status()
+                        orders = response.json()['payload']['orders']
                         sell_orders = [o for o in orders if o['order_type'] == 'sell' and o['user']['status'] == 'ingame']
                         if sell_orders:
                             price = min(o['platinum'] for o in sell_orders)
@@ -1248,7 +1284,9 @@ Examples...
             inventory = json.load(f)
             
         # Get current sell orders
-        sell_orders = json.loads(client.get('https://api.warframe.market/v1/profile/{0}/orders'.format(user_name)).text)['payload']['sell_orders']
+        response = client.get(f'https://api.warframe.market/v1/profile/{user_name}/orders')
+        response.raise_for_status()
+        sell_orders = response.json()['payload']['sell_orders']
         
         # Track what we're already selling
         selling_items = {}
@@ -1279,11 +1317,15 @@ Examples...
                 
             # Get market data and calculate price
             try:
-                stats = json.loads(client.get("https://api.warframe.market/v1/items/{0}/statistics".format(best_match_item['url_name'])).text)['payload']['statistics_closed']['90days']
+                response = client.get(f"https://api.warframe.market/v1/items/{best_match_item['url_name']}/statistics")
+                response.raise_for_status()
+                stats = response.json()['payload']['statistics_closed']['90days']
                 median_price = median([x['median'] for x in stats[-5:]])
                 time.sleep(0.1)
                 
-                orders = json.loads(client.get("https://api.warframe.market/v1/items/{0}/orders".format(best_match_item['url_name'])).text)['payload']['orders']
+                response = client.get(f"https://api.warframe.market/v1/items/{best_match_item['url_name']}/orders")
+                response.raise_for_status()
+                orders = response.json()['payload']['orders']
                 
                 sell_orders = [x for x in orders if x['order_type'] == 'sell' and x['user']['status'] == 'ingame' and x['user']['ingame_name'] != user_name]
                 min_plat = 999999999
