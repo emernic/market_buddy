@@ -953,10 +953,12 @@ Examples...
         screenshots = []
         
         def monitor_clipboard():
-            last_clipboard = None
+            last_image_hash = None
             
             try:
-                last_clipboard = ImageGrab.grabclipboard()
+                clipboard_image = ImageGrab.grabclipboard()
+                if isinstance(clipboard_image, Image.Image):
+                    last_image_hash = hash(clipboard_image.tobytes())
             except OSError:
                 pass
                 
@@ -964,28 +966,17 @@ Examples...
                 try:
                     clipboard_image = ImageGrab.grabclipboard()
                     
-                    is_new_image = False
                     if not isinstance(clipboard_image, Image.Image):
                         continue
-                    elif not isinstance(last_clipboard, Image.Image):
-                        is_new_image = True
-                    elif clipboard_image.size != last_clipboard.size:
-                        is_new_image = True
-                    else:
-                        diff = 0
-                        for p1, p2 in zip(clipboard_image.getdata(), last_clipboard.getdata()):
-                            if isinstance(p1, tuple) and isinstance(p2, tuple):
-                                channel_diff = sum(abs(c1 - c2) for c1, c2 in zip(p1, p2))
-                                diff += channel_diff
-                            else:
-                                diff += abs(p1 - p2)
-                                
-                        is_new_image = diff > 10
                     
-                    if is_new_image and clipboard_image:
+                    # Generate hash of image data for fast comparison
+                    current_hash = hash(clipboard_image.tobytes())
+                    
+                    # Check if the hash is different from the previous image
+                    if current_hash != last_image_hash:
                         screenshots.append(clipboard_image)
                         print(f"Screenshot {len(screenshots)} detected")
-                        last_clipboard = clipboard_image
+                        last_image_hash = current_hash
                 except OSError:
                     pass
                 except Exception as e:
@@ -1128,10 +1119,12 @@ Examples...
         screenshots = []
         
         def monitor_clipboard():
-            last_clipboard = None
+            last_image_hash = None
             
             try:
-                last_clipboard = ImageGrab.grabclipboard()
+                clipboard_image = ImageGrab.grabclipboard()
+                if isinstance(clipboard_image, Image.Image):
+                    last_image_hash = hash(clipboard_image.tobytes())
             except OSError:
                 pass
                 
@@ -1139,28 +1132,17 @@ Examples...
                 try:
                     clipboard_image = ImageGrab.grabclipboard()
                     
-                    is_new_image = False
                     if not isinstance(clipboard_image, Image.Image):
                         continue
-                    elif not isinstance(last_clipboard, Image.Image):
-                        is_new_image = True
-                    elif clipboard_image.size != last_clipboard.size:
-                        is_new_image = True
-                    else:
-                        diff = 0
-                        for p1, p2 in zip(clipboard_image.getdata(), last_clipboard.getdata()):
-                            if isinstance(p1, tuple) and isinstance(p2, tuple):
-                                channel_diff = sum(abs(c1 - c2) for c1, c2 in zip(p1, p2))
-                                diff += channel_diff
-                            else:
-                                diff += abs(p1 - p2)
-                                
-                        is_new_image = diff > 10
                     
-                    if is_new_image and clipboard_image:
+                    # Generate hash of image data for fast comparison
+                    current_hash = hash(clipboard_image.tobytes())
+                    
+                    # Check if the hash is different from the previous image
+                    if current_hash != last_image_hash:
                         screenshots.append(clipboard_image)
                         print(f"Screenshot {len(screenshots)} detected")
-                        last_clipboard = clipboard_image
+                        last_image_hash = current_hash
                 except OSError:
                     pass
                 except Exception as e:
