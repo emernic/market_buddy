@@ -674,6 +674,7 @@ Examples...
         for (item_id, order_type), group_data in grouped_orders.items():
             original_orders = group_data['orders']
             total_quantity = group_data['total_quantity']
+            item_url_name = original_orders[0]['item']['url_name']
 
             response = client.get(f"https://api.warframe.market/v1/items/{item_url_name}/orders")
             response.raise_for_status()
