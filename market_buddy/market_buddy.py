@@ -666,7 +666,7 @@ Examples...
         for order in orders_to_process:
             key = (order['item']['id'], order['order_type'])
             if key not in grouped_orders:
-                grouped_orders[key] = {'orders': [], 'total_quantity': 0, 'item_details': order['item']}
+                grouped_orders[key] = {'orders': [], 'total_quantity': 0}
             grouped_orders[key]['orders'].append(order)
             grouped_orders[key]['total_quantity'] += order['quantity']
 
@@ -674,48 +674,20 @@ Examples...
         for (item_id, order_type), group_data in grouped_orders.items():
             original_orders = group_data['orders']
             total_quantity = group_data['total_quantity']
-            item_details = group_data['item_details']
-            item_url_name = item_details['url_name']
             item_name = item_details['en']['item_name']
-
-            response = client.get(f"https://api.warframe.market/v1/items/{item_url_name}/statistics")
-            response.raise_for_status()
-            stats = response.json()['payload']['statistics_closed']['90days']
-            time.sleep(0.1)
-            median_price = median([x['median'] for x in stats[-20:]])
 
             response = client.get(f"https://api.warframe.market/v1/items/{item_url_name}/orders")
             response.raise_for_status()
             market_orders = response.json()['payload']['orders']
             time.sleep(0.1)
 
-            # Calculate new price based on type
-            plat = 0
             if order_type == 'buy':
-                # Find max buy price among other active users
                 competing_buy_prices = [o['platinum'] for o in market_orders if o['order_type'] == 'buy' and o['user']['status'] == 'ingame' and o['user']['ingame_name'] != user_name]
-                max_plat = max(competing_buy_prices) if competing_buy_prices else 0
-                # Use median price as a fallback/sanity check
-                default_plat = round(median_price * 1.1)
-                # If current prices are wack, just go with the default price.
-                if not competing_buy_prices or max_plat > 1.5*median_price or max_plat < 0.5*median_price:
-                    plat = default_plat
-                else:
-                    plat = max_plat
-
-            else:  # sell order
-                # Find min sell price among other active users
+                plat = max(competing_buy_prices)
+            else:
                 competing_sell_prices = [o['platinum'] for o in market_orders if o['order_type'] == 'sell' and o['user']['status'] == 'ingame' and o['user']['ingame_name'] != user_name]
-                min_plat = min(competing_sell_prices) if competing_sell_prices else 999999999 # High default if no sellers
-                # Use median price as fallback/sanity check
-                default_plat = round(median_price * 0.9)
-                # If current prices are wack, just go with the default price.
-                if not competing_sell_prices or min_plat > 1.5*median_price or min_plat < 0.5*median_price:
-                    plat = default_plat
-                else:
-                    plat = min_plat
+                plat = min(competing_sell_prices)
 
-            # Check if the existing order already matches the target price and quantity
             if (
                 len(original_orders) == 1 and 
                 original_orders[0]['platinum'] == plat and 
@@ -723,17 +695,11 @@ Examples...
             ):
                 continue
 
-            # Close original orders for this group
-            closed_count = 0
+            # Close original orders for group.
             for order in original_orders:
-                try:
-                    close_response = client.put(f'https://api.warframe.market/v1/profile/orders/close/{order["id"]}')
-                    time.sleep(0.1)
-                    closed_count += 1
-                except requests.exceptions.RequestException as e:
-                    print(f"WARN: Failed to close order {order['id']}: {e}")
-            if closed_count < len(original_orders):
-                 print(f"WARN: Only closed {closed_count}/{len(original_orders)} orders successfully.")
+                close_response = client.put(f'https://api.warframe.market/v1/profile/orders/close/{order["id"]}')
+                close_response.raise_for_status()
+                time.sleep(0.1)
 
             # Create the new consolidated order
             payload = {
@@ -748,21 +714,18 @@ Examples...
                 "accept": "application/json", "accept-encoding": "gzip, deflate, br"
             }
 
-            try:
+            post_response = client.post('https://api.warframe.market/v1/profile/orders', headers=additional_headers, json=payload)
+            err_msg = post_response.text
+            time.sleep(0.1)
+            if post_response.status_code != 200:
+                payload['mod_rank'] = 0
                 post_response = client.post('https://api.warframe.market/v1/profile/orders', headers=additional_headers, json=payload)
                 time.sleep(0.1)
-                if post_response.status_code != 200:
-                    payload['mod_rank'] = 0
-                    post_response = client.post('https://api.warframe.market/v1/profile/orders', headers=additional_headers, json=payload)
-                    time.sleep(0.1)
 
-                if post_response.status_code == 200:
-                     print(f'REPRICED {order_type.upper()} ORDER FOR {total_quantity}x "{item_name}" TO {plat}p')
-                else:
-                    print(f'ERROR: Failed to create new order for "{item_name}" after retry. Status: {post_response.status_code}, Response: {post_response.text}')
-
-            except requests.exceptions.RequestException as e:
-                print(f"ERROR: Failed to post new order for \"{item_name}\": {e}")
+            if post_response.status_code == 200:
+                print(f'REPRICED {order_type.upper()} ORDER FOR {total_quantity}x "{item_name}" TO {plat}p')
+            else:
+                print(f'ERROR: Failed to create new order for "{item_name}"! Response: {err_msg}')
 
     elif commands[:7].upper() == 'VAULTED':
         sub_command = commands[8:].strip().lower() if len(commands) > 8 else ''
