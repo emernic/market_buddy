@@ -157,6 +157,7 @@ Examples...
 -Type "unvaulted" to see a list of newly released Prime Warframes that are not yet vaulted, with pricing information.
 -Type "inventory update" to enter screenshot monitoring mode for inventory tracking.
 -Type "relics" to scan screenshots of your relic inventory give refinement recommendations.
+-Type "inventory ducats" to identify items in your inventory that are best sold for ducats.
 """
             )
 
@@ -677,37 +678,16 @@ Examples...
             item_url_name = item_details['url_name']
             item_name = item_details['en']['item_name']
 
-            # Get median price
-            try:
-                response = client.get(f"https://api.warframe.market/v1/items/{item_url_name}/statistics")
-                response.raise_for_status()
-                stats = response.json()['payload']['statistics_closed']['90days']
-                time.sleep(0.1)
-                median_price = median([x['median'] for x in stats[-5:]])
-                if median_price is None:
-                    print(f"WARN: Could not determine median price for \"{item_name}\". Skipping reprice for this item.") # Adjusted indentation
-                    continue
-            except requests.exceptions.RequestException as e:
-                print(f"ERROR: Failed to get statistics for \"{item_name}\": {e}. Skipping reprice.") # Adjusted indentation
-                time.sleep(0.1)
-                continue
-            except KeyError:
-                print(f"WARN: Unexpected statistics data format for \"{item_name}\". Skipping reprice.") # Adjusted indentation
-                continue
+            response = client.get(f"https://api.warframe.market/v1/items/{item_url_name}/statistics")
+            response.raise_for_status()
+            stats = response.json()['payload']['statistics_closed']['90days']
+            time.sleep(0.1)
+            median_price = median([x['median'] for x in stats[-20:]])
 
-            # Get current market orders
-            try:
-                response = client.get(f"https://api.warframe.market/v1/items/{item_url_name}/orders")
-                response.raise_for_status()
-                market_orders = response.json()['payload']['orders']
-                time.sleep(0.1)
-            except requests.exceptions.RequestException as e:
-                print(f"ERROR: Failed to get market orders for \"{item_name}\": {e}. Skipping reprice.") # Adjusted indentation
-                time.sleep(0.1)
-                continue
-            except KeyError:
-                print(f"WARN: Unexpected market order data format for \"{item_name}\". Skipping reprice.") # Adjusted indentation
-                continue
+            response = client.get(f"https://api.warframe.market/v1/items/{item_url_name}/orders")
+            response.raise_for_status()
+            market_orders = response.json()['payload']['orders']
+            time.sleep(0.1)
 
             # Calculate new price based on type
             plat = 0
@@ -752,7 +732,6 @@ Examples...
                     closed_count += 1
                 except requests.exceptions.RequestException as e:
                     print(f"WARN: Failed to close order {order['id']}: {e}")
-                    time.sleep(0.1)
             if closed_count < len(original_orders):
                  print(f"WARN: Only closed {closed_count}/{len(original_orders)} orders successfully.")
 
@@ -784,7 +763,6 @@ Examples...
 
             except requests.exceptions.RequestException as e:
                 print(f"ERROR: Failed to post new order for \"{item_name}\": {e}")
-                time.sleep(0.1)
 
     elif commands[:7].upper() == 'VAULTED':
         sub_command = commands[8:].strip().lower() if len(commands) > 8 else ''
@@ -1277,7 +1255,7 @@ Examples...
     elif commands.upper() == 'INVENTORY SELL':
         inventory_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'inventory.json')
         if not os.path.exists(inventory_path):
-            print("No inventory data found.")
+            print("No inventory data found. Use 'inventory update' command to set inventory data.")
             continue
             
         with open(inventory_path, 'r') as f:
@@ -1437,6 +1415,135 @@ Examples...
             if related_items:
                 related_str = ", ".join([f"{qty} {name} ({price}p)" for name, qty, price in related_items])
                 print(f"  Also own: {related_str}. Set worth: {set_price}p")
+
+    elif commands.upper() == 'INVENTORY DUCATS':
+        inventory_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'inventory.json')
+        if not os.path.exists(inventory_path):
+            print("No inventory data found. Use 'inventory update' command to set inventory data.")
+            continue
+            
+        with open(inventory_path, 'r') as f:
+            inventory = json.load(f)
+        
+        # Get current sell orders to filter items
+        response = client.get(f'https://api.warframe.market/v1/profile/{user_name}/orders')
+        response.raise_for_status()
+        time.sleep(0.1)
+        response_json = response.json()
+        sell_orders = response_json['payload']['sell_orders']
+        
+        # Track what we're already selling - both individual items and sets
+        selling_items = {}
+        selling_sets = {}
+        for order in sell_orders:
+            item_name = order['item']['en']['item_name']
+            
+            # Check if this is a set (ends with "Set")
+            if item_name.endswith(" Set"):
+                base_name = item_name[:-4].strip()  # Remove " Set" from the end
+                selling_sets[base_name] = True
+            else:
+                selling_items[item_name] = True
+        
+        item_data = []
+        
+        for item_name, quantity in inventory.items():
+            # Skip if we're already selling this item
+            if item_name in selling_items:
+                continue
+                
+            # Skip if it's part of a set we're selling
+            base_name = None
+            if "Prime" in item_name:
+                name_parts = item_name.split("Prime")
+                if len(name_parts) >= 2:
+                    base_name = name_parts[0].strip() + " Prime"
+                    if base_name in selling_sets:
+                        continue
+            
+            best_match_item = None
+            for item in item_list:
+                if item['item_name'] == item_name:
+                    best_match_item = item
+                    break
+                    
+            if not best_match_item:
+                continue
+            
+            response = client.get(f"https://api.warframe.market/v1/items/{best_match_item['url_name']}/orders")
+            response.raise_for_status()
+            time.sleep(0.1)
+            orders = response.json()['payload']['orders']
+            
+            sell_orders = [x for x in orders if x['order_type'] == 'sell' and x['user']['status'] == 'ingame' and x['user']['ingame_name'] != user_name]
+            plat_price = min(order['platinum'] for order in sell_orders) if sell_orders else 0
+            
+            # Get set price if applicable
+            set_price = 0
+            if base_name:
+                set_name = f"{base_name} Set"
+                set_item = None
+                for item in item_list:
+                    if item['item_name'] == set_name:
+                        set_item = item
+                        break
+                
+                if set_item:
+                    response = client.get(f"https://api.warframe.market/v1/items/{set_item['url_name']}/orders")
+                    response.raise_for_status()
+                    time.sleep(0.1)
+                    set_orders = response.json()['payload']['orders']
+                    
+                    set_sell_orders = [x for x in set_orders if x['order_type'] == 'sell' and x['user']['status'] == 'ingame' and x['user']['ingame_name'] != user_name]
+                    set_price = min(order['platinum'] for order in set_sell_orders) if set_sell_orders else 0
+            
+            response = client.get(f"https://api.warframe.market/v1/items/{best_match_item['url_name']}")
+            response.raise_for_status()
+            time.sleep(0.1)
+            item_detail = response.json()['payload']['item']
+            
+            ducat_value = 0
+            owned_in_set = "N/A"
+            
+            if base_name:
+                # Count owned items in set
+                set_items = []
+                for item_in_set in item_detail['items_in_set']:
+                    # Only include tradable items that aren't the set itself
+                    if 'set_root' in item_in_set and not item_in_set.get('set_root', False):
+                        set_items.append(item_in_set)
+                
+                if set_items:
+                    owned_count = 0
+                    total_count = len(set_items)
+                    
+                    for set_item in set_items:
+                        if 'en' in set_item and 'item_name' in set_item['en']:
+                            set_item_name = set_item['en']['item_name']
+                            if set_item_name in inventory:
+                                owned_count += 1
+                    
+                    owned_in_set = f"{owned_count}/{total_count}"
+            
+            # Get ducat value for this specific item
+            for item_in_set in item_detail['items_in_set']:
+                if item_in_set['url_name'] == best_match_item['url_name'] and 'ducats' in item_in_set:
+                    ducat_value = item_in_set['ducats']
+                    break
+            
+            ducat_plat_ratio = ducat_value / plat_price if plat_price > 0 else 0
+            if plat_price < 8:
+                item_data.append((item_name, plat_price, ducat_value, set_price, owned_in_set, ducat_plat_ratio))
+        
+        # Sort by ducat/plat ratio (descending)
+        item_data.sort(key=lambda x: x[5], reverse=True)
+        
+        table = PrettyTable(['Item Name', 'Platinum', 'Ducats', 'Full Set Platinum', 'Owned in Set'])
+        
+        for item_name, plat_price, ducat_value, set_price, owned_in_set, _ in item_data:
+            table.add_row([item_name, f"{plat_price}p", ducat_value, f"{set_price}p" if set_price else "N/A", owned_in_set])
+        
+        print(table)
 
     else:
         print("Couldn't recognize the command, if you need help, you can type \"Help\" to get a list of commands.")
