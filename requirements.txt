@@ -7,7 +7,7 @@ pandas
 pillow
 prettytable
 numpy
-torch==1.13.1
+torch==2.7.0
 torchvision==0.14.1
 easyocr==1.6.2
 python-Levenshtein 
